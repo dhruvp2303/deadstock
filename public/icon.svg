@@ -1,0 +1,19 @@
+<svg width="480" height="480" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="190,86 190,166 120,206 120,126" fill="#CBD5E1"/>
+  <polygon points="50,86 50,166 120,206 120,126" fill="#94A3B8"/>
+  <line x1="50" y1="106" x2="120" y2="146" stroke="#7C8CA3" stroke-width="1.5"/>
+  <line x1="50" y1="126" x2="120" y2="166" stroke="#7C8CA3" stroke-width="1.5"/>
+  <line x1="50" y1="146" x2="120" y2="186" stroke="#7C8CA3" stroke-width="1.5"/>
+  <line x1="190" y1="106" x2="120" y2="146" stroke="#B7C2D0" stroke-width="1.5"/>
+  <line x1="190" y1="126" x2="120" y2="166" stroke="#B7C2D0" stroke-width="1.5"/>
+  <line x1="190" y1="146" x2="120" y2="186" stroke="#B7C2D0" stroke-width="1.5"/>
+  <polygon points="120,46 190,86 120,126 50,86" fill="url(#topGrad)"/>
+  <path d="M120 78 L150 62 L142 62 L142 44 L128 44 L128 58 L120 58 Z"
+        fill="#F8FAFC" transform="rotate(-8 135 60)"/>
+  <defs>
+    <linearGradient id="topGrad" x1="50" y1="46" x2="190" y2="126" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#0D9488"/>
+    </linearGradient>
+  </defs>
+</svg>
