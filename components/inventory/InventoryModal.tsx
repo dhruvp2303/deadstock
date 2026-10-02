@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Sparkles, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { InventoryItem, DeadStockAPI } from '@/lib/api'
+import { useMasterData } from '@/hooks/useMasterData'
 
 interface InventoryModalProps {
   isOpen: boolean
@@ -17,15 +18,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   onSuccess,
   itemToEdit,
 }) => {
+  const { categories, warehouses } = useMasterData()
+
   const [sku, setSku] = useState('')
   const [productName, setProductName] = useState('')
-  const [category, setCategory] = useState('Mechanical Components')
+  const [categoryId, setCategoryId] = useState<number | undefined>(1)
+  const [categoryName, setCategoryName] = useState('Mechanical Components')
+  const [warehouseId, setWarehouseId] = useState<number | undefined>(1)
+  const [warehouseLocation, setWarehouseLocation] = useState('Ahmedabad Depot')
   const [quantity, setQuantity] = useState<number>(1000)
   const [unitCost, setUnitCost] = useState<number>(50)
   const [monthlyDemand, setMonthlyDemand] = useState<number>(150)
   const [ageMonths, setAgeMonths] = useState<number>(6)
   const [material, setMaterial] = useState('High Density Polymer')
-  const [warehouseLocation, setWarehouseLocation] = useState('Ahmedabad Warehouse')
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -33,32 +38,50 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     if (itemToEdit) {
       setSku(itemToEdit.sku)
       setProductName(itemToEdit.product)
-      setCategory(itemToEdit.category || 'Mechanical Components')
+      setCategoryId(itemToEdit.category_id || categories[0]?.id || 1)
+      setCategoryName(itemToEdit.category || categories[0]?.name || 'Mechanical Components')
+      setWarehouseId(itemToEdit.warehouse_id || warehouses[0]?.id || 1)
+      setWarehouseLocation(itemToEdit.warehouse || warehouses[0]?.name || 'Ahmedabad Depot')
       setQuantity(itemToEdit.quantity || 1000)
       setUnitCost(itemToEdit.unit_cost || 50)
       setMonthlyDemand(itemToEdit.monthly_demand || 150)
       setAgeMonths(itemToEdit.age_months || 6)
       setMaterial(itemToEdit.material || 'Standard Industrial Material')
-      setWarehouseLocation(itemToEdit.warehouse || 'Ahmedabad Warehouse')
     } else {
       setSku(`SKU-${Math.floor(1000 + Math.random() * 9000)}`)
       setProductName('')
-      setCategory('Mechanical Components')
+      setCategoryId(categories[0]?.id || 1)
+      setCategoryName(categories[0]?.name || 'Mechanical Components')
+      setWarehouseId(warehouses[0]?.id || 1)
+      setWarehouseLocation(warehouses[0]?.name || 'Ahmedabad Depot')
       setQuantity(2500)
       setUnitCost(45)
       setMonthlyDemand(200)
       setAgeMonths(8)
       setMaterial('ABS Molded Polymer')
-      setWarehouseLocation('Ahmedabad Warehouse')
     }
     setErrorMessage(null)
-  }, [itemToEdit, isOpen])
+  }, [itemToEdit, isOpen, categories, warehouses])
 
   if (!isOpen) return null
 
   // Estimated Months of Supply
   const mos = monthlyDemand > 0 ? (quantity / monthlyDemand).toFixed(1) : '∞'
   const estimatedValuation = (quantity * unitCost).toLocaleString()
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = Number(e.target.value)
+    setCategoryId(selectedId)
+    const found = categories.find((c) => c.id === selectedId)
+    if (found) setCategoryName(found.name)
+  }
+
+  const handleWarehouseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = Number(e.target.value)
+    setWarehouseId(selectedId)
+    const found = warehouses.find((w) => w.id === selectedId)
+    if (found) setWarehouseLocation(found.name)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,13 +92,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       if (itemToEdit) {
         const res = await DeadStockAPI.updateInventory(itemToEdit.id, {
           product_name: productName,
-          category,
+          category: categoryName,
+          category_id: categoryId,
           quantity,
           unit_cost: unitCost,
           monthly_demand: monthlyDemand,
           age_months: ageMonths,
           material,
           warehouse_location: warehouseLocation,
+          warehouse_id: warehouseId,
         })
         if (res?.success !== false) {
           onSuccess()
@@ -87,13 +112,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         const res = await DeadStockAPI.addInventory({
           sku,
           product_name: productName,
-          category,
+          category: categoryName,
+          category_id: categoryId,
           quantity,
           unit_cost: unitCost,
           monthly_demand: monthlyDemand,
           age_months: ageMonths,
           material,
           warehouse_location: warehouseLocation,
+          warehouse_id: warehouseId,
         })
         if (res?.success !== false) {
           onSuccess()
@@ -155,18 +182,18 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                Category *
+                Normalized Category *
               </label>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                value={categoryId}
+                onChange={handleCategoryChange}
                 className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:border-zinc-500 focus:outline-none"
               >
-                <option value="Mechanical Components">Mechanical Components</option>
-                <option value="Electronics & PCB">Electronics & PCB</option>
-                <option value="Plastic & Polymers">Plastic & Polymers</option>
-                <option value="Packaging & Cartons">Packaging & Cartons</option>
-                <option value="Industrial Hardware">Industrial Hardware</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.default_decay_rate ? `(${Math.round(c.default_decay_rate * 100)}% decay/mo)` : ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -243,15 +270,33 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                Warehouse Location
+                Assigned Warehouse
               </label>
-              <input
-                type="text"
-                value={warehouseLocation}
-                onChange={(e) => setWarehouseLocation(e.target.value)}
+              <select
+                value={warehouseId}
+                onChange={handleWarehouseChange}
                 className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:border-zinc-500 focus:outline-none"
-              />
+              >
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} {w.city ? `(${w.city})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              Material Specification
+            </label>
+            <input
+              type="text"
+              value={material}
+              onChange={(e) => setMaterial(e.target.value)}
+              placeholder="e.g. ABS Molded Polymer / Stainless Steel 316"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:border-zinc-500 focus:outline-none"
+            />
           </div>
 
           {/* Real-time Indicator Preview */}
