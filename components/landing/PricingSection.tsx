@@ -1,149 +1,183 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Check, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Check } from 'lucide-react'
 
-export const PricingSection: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) => {
-  const [isAnnual, setIsAnnual] = useState(true)
+const PLANS = [
+  {
+    name: 'Basic',
+    desc: 'Suitable for small businesses and individual sellers.',
+    priceMonthly: '₹0',
+    priceYearly: '₹0',
+    subtitle: '/Month',
+    features: [
+      'Up to 50 listings',
+      'Standard buyer matching',
+      'Email support',
+      'CSV import',
+      'Basic analytics',
+    ],
+    notIncluded: ['Priority placement', 'Dedicated account manager', 'Custom logistics'],
+    cta: 'Get Started Free',
+    dark: false,
+  },
+  {
+    name: 'Pro Plan',
+    desc: 'Ideal for Growing Businesses. Designed for frequent shippers and mid-sized sellers.',
+    priceMonthly: '₹4,999',
+    priceYearly: '₹3,999',
+    subtitle: '/Month',
+    features: [
+      'Unlimited listings',
+      'AI-powered buyer matching',
+      'Up to 50 shipments/month',
+      'Real-time tracking with alerts',
+      'Dedicated account manager',
+      '24/7 Customer Assistance',
+    ],
+    notIncluded: ['Custom logistics solutions'],
+    cta: 'Unlock Pro Plan',
+    dark: true,
+    popular: true,
+  },
+  {
+    name: 'Enterprise',
+    desc: 'Large-Scale Operations. Comprehensive solutions for high-volume shippers.',
+    priceMonthly: 'Custom',
+    priceYearly: 'Custom',
+    subtitle: '',
+    features: [
+      'Unlimited shipments',
+      'Real-time tracking with alerts',
+      'Custom logistics solutions',
+      'Priority support and analytics',
+      'White-label option',
+      'ERP & SAP integration',
+    ],
+    notIncluded: [],
+    cta: 'Contact Sales',
+    dark: false,
+  },
+]
 
-  const plans = [
-    {
-      name: 'Starter Depot',
-      tagline: 'Ideal for single-facility operations beginning inventory recovery',
-      priceMonthly: '₹4,999',
-      priceAnnual: '₹3,999',
-      period: '/ month',
-      popular: false,
-      features: [
-        'Up to 500 active SKU tracking',
-        'Single warehouse location',
-        'Automated 0–100 Risk Engine',
-        'Standard B2B Buyer Matching',
-        'CSV batch import with validation',
-        'Email notifications & alerts',
-      ],
-      cta: 'Start 14-Day Trial',
-    },
-    {
-      name: 'Growth Multi-Hub',
-      tagline: 'For expanding distributors & multi-depot manufacturing facilities',
-      priceMonthly: '₹14,999',
-      priceAnnual: '₹11,999',
-      period: '/ month',
-      popular: true,
-      features: [
-        'Up to 5,000 active SKU tracking',
-        'Up to 5 warehouse locations',
-        'Auditable multi-signal risk index',
-        'Priority counterparty buyer matching',
-        'Recovery Center (Sell/Transfer/Discount)',
-        'Grounded AI Assistant chat',
-        'Immutable movement audit loggers',
-      ],
-      cta: 'Start Growth Trial',
-    },
-    {
-      name: 'Enterprise Custom',
-      tagline: 'Tailored for enterprise OEMs, large supply networks & corporate ERPs',
-      priceMonthly: 'Custom',
-      priceAnnual: 'Custom',
-      period: '',
-      popular: false,
-      features: [
-        'Unlimited SKUs & multi-tenant orgs',
-        'Direct SAP, Oracle & ERP connectors',
-        'Private B2B buyer liquidity pool',
-        'Dedicated account liquidation broker',
-        'Custom Scope-3 sustainability reports',
-        '99.9% SLA & 24/7 dedicated engineering',
-      ],
-      cta: 'Contact Enterprise Sales',
-    },
-  ]
+export const DSPricing: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) => {
+  const [yearly, setYearly] = useState(false)
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true) }, { threshold: 0.15 })
+    if (sectionRef.current) obs.observe(sectionRef.current)
+    return () => obs.disconnect()
+  }, [])
 
   return (
-    <section id="pricing" className="py-24 px-6 bg-zinc-50/60 dark:bg-zinc-900/30 border-y border-zinc-200/80 dark:border-zinc-800/80">
-      <div className="max-w-7xl mx-auto space-y-12">
-        <div className="text-center max-w-3xl mx-auto space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-[#0D9488] dark:text-[#14B8A6]">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Predictable SaaS Pricing</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Simple tiers that pay for themselves on lot one.
+    <section id="pricing" ref={sectionRef} className="py-20 sm:py-28 px-6 bg-[#F8FAFC] scroll-mt-28 border-t border-gray-100">
+      <div className="max-w-[1360px] mx-auto space-y-14">
+
+        {/* Header + toggle */}
+        <div className={`text-center max-w-2xl mx-auto space-y-4 transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+          <span className="text-xs font-bold tracking-wider text-blue-600 uppercase mb-2 block">
+            Pricing
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0B1E2D] tracking-tight">
+            Simple, Transparent Pricing
           </h2>
-          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400">
-            One successful surplus liquidation recovers multiple years of platform subscription value.
+          <p className="text-sm sm:text-base text-gray-600">
+            No hidden commissions. Scale your inventory recovery with predictable plans.
           </p>
 
-          {/* Billing Switch */}
-          <div className="pt-4 flex items-center justify-center gap-3 text-xs font-semibold">
-            <span className={!isAnnual ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400'}>Monthly</span>
-            <button
-              type="button"
-              onClick={() => setIsAnnual(!isAnnual)}
-              className="relative h-6 w-12 rounded-full bg-zinc-200 dark:bg-zinc-800 p-0.5 transition-colors focus:outline-none"
-            >
-              <div
-                className={`h-5 w-5 rounded-full bg-[#0D9488] shadow-sm transition-transform ${
-                  isAnnual ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
-            <span className={isAnnual ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400'}>
-              Annual <span className="text-[#0D9488] font-bold">(Save 20%)</span>
-            </span>
+          {/* Monthly/Yearly toggle pill */}
+          <div className="pt-2">
+            <div className="inline-flex items-center gap-1 p-1 rounded-full bg-gray-200/70 border border-gray-300">
+              <button
+                type="button"
+                onClick={() => setYearly(false)}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${!yearly ? 'bg-white shadow-sm text-[#0B1E2D]' : 'text-gray-500 hover:text-black'}`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setYearly(true)}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all ${yearly ? 'bg-white shadow-sm text-[#0B1E2D]' : 'text-gray-500 hover:text-black'}`}
+              >
+                Yearly <span className="text-emerald-600 text-xs font-extrabold ml-1">-20%</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Pricing Cards Grid */}
+        {/* ── Pricing Cards ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-          {plans.map((p) => (
+          {PLANS.map((plan, i) => (
             <div
-              key={p.name}
-              className={`rounded-3xl border p-8 flex flex-col justify-between transition-all ${
-                p.popular
-                  ? 'border-[#0D9488] bg-white dark:bg-zinc-950 shadow-xl ring-2 ring-[#0D9488]/30 relative'
-                  : 'border-zinc-200/90 dark:border-zinc-800/90 bg-white dark:bg-zinc-950 shadow-xs'
+              key={plan.name}
+              className={`rounded-3xl p-8 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 shadow-md ${
+                plan.dark
+                  ? 'bg-[#0B1E2D] text-white shadow-2xl ring-2 ring-blue-500/50'
+                  : 'bg-white text-[#0B1E2D] border border-gray-200 hover:shadow-xl'
               }`}
+              style={{
+                transitionDelay: `${i * 80}ms`,
+                opacity: visible ? 1 : 0,
+                transform: visible ? 'translateY(0)' : 'translateY(24px)',
+              }}
             >
-              {p.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#0D9488] px-3.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
-                  Most Popular
-                </div>
-              )}
-
               <div>
-                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{p.name}</h3>
-                <p className="text-xs text-zinc-500 mt-1 min-h-[32px]">{p.tagline}</p>
+                {plan.popular ? (
+                  <div className="mb-4">
+                    <span className="px-3.5 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-600 text-white uppercase shadow-sm">
+                      Most Popular
+                    </span>
+                  </div>
+                ) : (
+                  <div className="h-6 mb-4" />
+                )}
 
-                <div className="mt-6 mb-6">
-                  <span className="text-3xl sm:text-4xl font-black font-mono text-zinc-900 dark:text-zinc-100">
-                    {isAnnual ? p.priceAnnual : p.priceMonthly}
+                <h3 className={`text-2xl font-black mb-1.5 ${plan.dark ? 'text-white' : 'text-[#0B1E2D]'}`}>
+                  {plan.name}
+                </h3>
+                <p className={`text-xs leading-relaxed mb-6 min-h-[36px] ${plan.dark ? 'text-gray-300' : 'text-gray-500'}`}>
+                  {plan.desc}
+                </p>
+
+                <div className={`pb-6 mb-6 border-b flex items-baseline gap-1 ${plan.dark ? 'border-white/10' : 'border-gray-100'}`}>
+                  <span className={`text-4xl sm:text-5xl font-black tracking-tight ${plan.dark ? 'text-white' : 'text-[#0B1E2D]'}`}>
+                    {yearly ? plan.priceYearly : plan.priceMonthly}
                   </span>
-                  <span className="text-xs text-zinc-400 font-mono">{p.period}</span>
+                  {plan.subtitle && (
+                    <span className={`text-xs font-semibold ${plan.dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {plan.subtitle}
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-2.5 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-300">
-                  {p.features.map((f) => (
-                    <div key={f} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-[#0D9488] shrink-0 mt-0.5" />
-                      <span>{f}</span>
-                    </div>
-                  ))}
+                <div>
+                  <p className={`text-[10px] font-bold tracking-widest uppercase mb-4 ${plan.dark ? 'text-gray-400' : 'text-gray-400'}`}>
+                    Key Features:
+                  </p>
+                  <ul className="space-y-3 mb-4">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-xs sm:text-sm">
+                        <Check className={`h-4 w-4 shrink-0 mt-0.5 ${plan.dark ? 'text-teal-400' : 'text-blue-600'}`} />
+                        <span className={plan.dark ? 'text-gray-200' : 'text-gray-700'}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={onGetStarted}
-                className={`mt-8 w-full rounded-full py-3 text-xs font-bold transition-all shadow-sm ${
-                  p.popular
-                    ? 'bg-[#0D9488] hover:bg-[#0F9D8D] text-white shadow-teal-600/20'
-                    : 'border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100'
+                className={`mt-8 w-full rounded-full py-3.5 text-xs sm:text-sm font-bold transition-all shadow-md hover:scale-105 ${
+                  plan.dark
+                    ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/30'
+                    : 'bg-[#0A0A0A] text-white hover:bg-[#1E293B]'
                 }`}
               >
-                {p.cta}
+                {plan.cta}
               </button>
             </div>
           ))}
@@ -152,3 +186,7 @@ export const PricingSection: React.FC<{ onGetStarted: () => void }> = ({ onGetSt
     </section>
   )
 }
+
+export const PricingSection = DSPricing
+export default DSPricing
+

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   Layers3,
   Package,
@@ -25,20 +25,25 @@ import {
 } from 'lucide-react'
 
 import {
-  DeadStockAPI,
   InventoryItem,
   BuyerMatchItem,
   MarketplaceItem,
-  DashboardSummary,
   NotificationItem,
   OfferItem,
 } from '@/lib/api'
+
+import { useInventory } from '@/hooks/useInventory'
+import { useBuyerMatches } from '@/hooks/useBuyerMatches'
+import { useMarketplace } from '@/hooks/useMarketplace'
+import { useOffers } from '@/hooks/useOffers'
+import { useNotifications } from '@/hooks/useNotifications'
+import { useWorkspace } from '@/hooks/useWorkspace'
 
 import { LandingPage } from '@/components/landing/LandingPage'
 import { AuthScreen } from '@/components/auth/AuthScreen'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Header } from '@/components/navigation/Header'
-import { Sidebar, NavSection } from '@/components/navigation/Sidebar'
+import { Sidebar } from '@/components/navigation/Sidebar'
 import { InventoryTable } from '@/components/inventory/InventoryTable'
 import { InventoryModal } from '@/components/inventory/InventoryModal'
 import { CsvImportModal } from '@/components/inventory/CsvImportModal'
@@ -55,261 +60,55 @@ import { SettingsView } from '@/components/settings/SettingsView'
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { AIAssistantModal } from '@/components/ai/AIAssistantModal'
 
-// Resilient Fallback Data
-const DEFAULT_INVENTORY: InventoryItem[] = [
-  {
-    id: 1,
-    product: 'Precision Polymer Connector 20mm',
-    sku: 'PC2048',
-    qty: '4,500',
-    quantity: 4500,
-    value: '₹1.8L',
-    current_value: 180000,
-    unit_cost: 40,
-    age: '11 mo',
-    age_months: 11,
-    demand: '1,100',
-    monthly_demand: 1100,
-    risk: '87%',
-    risk_score: 87,
-    risk_level: 'CRITICAL',
-    action: 'Find Buyer',
-    tone: 'red',
-    category: 'Mechanical Components',
-    warehouse: 'Ahmedabad Depot',
-    ai_explanation: "This item's risk is 87 (CRITICAL) because stock quantity is 4.1x expected demand, inventory age has reached 11 months, and sales velocity dropped 62%.",
-  },
-  {
-    id: 2,
-    product: 'PCB Control Module v2',
-    sku: 'PCB-401',
-    qty: '1,200',
-    quantity: 1200,
-    value: '₹6.4L',
-    current_value: 640000,
-    unit_cost: 533.33,
-    age: '14 mo',
-    age_months: 14,
-    demand: '480',
-    monthly_demand: 480,
-    risk: '94%',
-    risk_score: 94,
-    risk_level: 'CRITICAL',
-    action: 'Urgent Liquidation',
-    tone: 'red',
-    category: 'Electronics & PCB',
-    warehouse: 'Surat Warehouse',
-    ai_explanation: "This item's risk is 94 (CRITICAL) because component obsolescence is imminent and stock exceeds 2.5x annual turnover.",
-  },
-  {
-    id: 3,
-    product: 'Heavy Duty Packaging Box',
-    sku: 'PKG-118',
-    qty: '12,000',
-    quantity: 12000,
-    value: '₹2.1L',
-    current_value: 210000,
-    unit_cost: 17.5,
-    age: '8 mo',
-    age_months: 8,
-    demand: '5,200',
-    monthly_demand: 5200,
-    risk: '71%',
-    risk_score: 71,
-    risk_level: 'HIGH',
-    action: 'Discount Sale',
-    tone: 'amber',
-    category: 'Packaging & Cartons',
-    warehouse: 'Nagpur Center',
-    ai_explanation: "This item's risk is 71 (HIGH) because storage holding costs exceed standard margin thresholds.",
-  },
-  {
-    id: 4,
-    product: 'Steel Bolt M8 High Tensile',
-    sku: 'SBM8-22',
-    qty: '8,200',
-    quantity: 8200,
-    value: '₹3.2L',
-    current_value: 320000,
-    unit_cost: 39,
-    age: '5 mo',
-    age_months: 5,
-    demand: '3,400',
-    monthly_demand: 3400,
-    risk: '28%',
-    risk_score: 28,
-    risk_level: 'LOW',
-    action: 'Monitor',
-    tone: 'green',
-    category: 'Industrial Hardware',
-    warehouse: 'Ahmedabad Depot',
-    ai_explanation: "This item's risk is 28 (LOW) because inventory velocity is within normal operational turnover.",
-  },
-]
-
-const DEFAULT_MATCHES: BuyerMatchItem[] = [
-  {
-    id: 1,
-    name: 'ElectroTech Industries',
-    buyer_company_id: 2,
-    match: '93%',
-    match_score: 93,
-    units: '3,000 units',
-    required_units: 3000,
-    location: 'Ahmedabad, Gujarat',
-    value: '₹2.4L',
-    potential_deal_value: 240000,
-    note: 'Verified compatibility with industrial connector production batch.',
-    tags: ['Material Match', 'Direct Sourcing'],
-    breakdown: {
-      product_compatibility: '96%',
-      quantity_compatibility: '92%',
-      industry: '95%',
-      location: '96%',
-      price: '88%',
-      overall: '93%',
-    },
-  },
-  {
-    id: 2,
-    name: 'Nova Components Ltd.',
-    buyer_company_id: 3,
-    match: '87%',
-    match_score: 87,
-    units: '2,500 units',
-    required_units: 2500,
-    location: 'Bengaluru, Karnataka',
-    value: '₹1.9L',
-    potential_deal_value: 190000,
-    note: 'High purchasing capacity for surplus PCB sub-modules.',
-    tags: ['Electronics Fit', 'Regional Logistics'],
-    breakdown: {
-      product_compatibility: '90%',
-      quantity_compatibility: '88%',
-      industry: '92%',
-      location: '80%',
-      price: '85%',
-      overall: '87%',
-    },
-  },
-]
-
-const DEFAULT_MARKETPLACE: MarketplaceItem[] = [
-  {
-    id: 1,
-    title: 'Industrial Connector 20mm High Temp',
-    category: 'Mechanical Components',
-    units: '5,000 units',
-    units_available: 5000,
-    price: '₹28/unit',
-    price_per_unit: 28,
-    match: '91%',
-    location: 'Ahmedabad Depot',
-    action: 'Submit Offer',
-  },
-  {
-    id: 2,
-    title: 'ABS Molded Shells Grade-A',
-    category: 'Plastic & Polymers',
-    units: '2,800 units',
-    units_available: 2800,
-    price: '₹45/unit',
-    price_per_unit: 45,
-    match: '84%',
-    location: 'Surat Depot',
-    action: 'Submit Offer',
-  },
-  {
-    id: 3,
-    title: 'Heavy Duty Corrugated Shipping Cartons',
-    category: 'Packaging & Cartons',
-    units: '18,400 units',
-    units_available: 18400,
-    price: '₹12/unit',
-    price_per_unit: 12,
-    match: '78%',
-    location: 'Nagpur Center',
-    action: 'Submit Offer',
-  },
-]
-
 export default function DeadStockPlatform() {
-  // App Navigation Flow: 'landing' | 'auth_signup' | 'auth_login' | 'onboarding' | 'app'
-  const [appScreen, setAppScreen] = useState<'landing' | 'auth_signup' | 'auth_login' | 'onboarding' | 'app'>('landing')
+  const {
+    appScreen,
+    setAppScreen,
+    role,
+    setRole,
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    toasts,
+    showToast,
+    dashboardSummary,
+    handleRoleChange,
+    refetchSummary,
+  } = useWorkspace()
 
-  const [role, setRole] = useState<'seller' | 'buyer'>('seller')
-  const [activeTab, setActiveTab] = useState<NavSection>('dashboard')
+  const { inventory, loading: inventoryLoading, refetch: refetchInventory, archiveItem } = useInventory()
+  const { matches, refetch: refetchMatches } = useBuyerMatches()
+  const { marketplace, refetch: refetchMarketplace } = useMarketplace()
+  const { offers, refetch: refetchOffers } = useOffers()
+  const { notifications, markAsRead, refetch: refetchNotifications } = useNotifications()
 
-  // API State
-  const [inventory, setInventory] = useState<InventoryItem[]>(DEFAULT_INVENTORY)
-  const [matches, setMatches] = useState<BuyerMatchItem[]>(DEFAULT_MATCHES)
-  const [marketplace, setMarketplace] = useState<MarketplaceItem[]>(DEFAULT_MARKETPLACE)
-  const [offers, setOffers] = useState<OfferItem[]>([])
-  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null)
-  const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-
-  // Modals & Drawers
+  // Modal Dialog States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
   const [itemToEdit, setItemToEdit] = useState<InventoryItem | null>(null)
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
+  const [isExportReportOpen, setIsExportReportOpen] = useState(false)
   const [itemForRecovery, setItemForRecovery] = useState<InventoryItem | null>(null)
   const [itemForSkuDetail, setItemForSkuDetail] = useState<InventoryItem | null>(null)
   const [itemForMarketplacePublish, setItemForMarketplacePublish] = useState<InventoryItem | null>(null)
-  const [isExportReportOpen, setIsExportReportOpen] = useState(false)
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
-  const [isAIOpen, setIsAIOpen] = useState(false)
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3500)
-  }
+  const reloadAllData = useCallback(() => {
+    refetchInventory()
+    refetchMatches()
+    refetchMarketplace()
+    refetchOffers()
+    refetchNotifications()
+    refetchSummary()
+  }, [refetchInventory, refetchMatches, refetchMarketplace, refetchOffers, refetchNotifications, refetchSummary])
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [invRes, matchRes, mktRes, offRes, sumRes, notifRes] = await Promise.all([
-        DeadStockAPI.getInventory(),
-        DeadStockAPI.getMatches(),
-        DeadStockAPI.getMarketplace(),
-        DeadStockAPI.getOffers(),
-        DeadStockAPI.getDashboardSummary(),
-        DeadStockAPI.getNotifications(),
-      ])
-
-      if (invRes && Array.isArray(invRes) && invRes.length > 0) setInventory(invRes)
-      if (matchRes && Array.isArray(matchRes) && matchRes.length > 0) setMatches(matchRes)
-      if (mktRes && Array.isArray(mktRes) && mktRes.length > 0) setMarketplace(mktRes)
-      if (offRes && Array.isArray(offRes)) setOffers(offRes)
-      if (sumRes) setDashboardSummary(sumRes)
-      if (notifRes && Array.isArray(notifRes)) setNotifications(notifRes)
-    } catch (err) {
-      console.warn('Failed fetching data, continuing with resilient state.', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  const handleRoleChange = (newRole: 'seller' | 'buyer') => {
-    setRole(newRole)
-    if (newRole === 'buyer') {
-      setActiveTab('marketplace')
-    } else {
-      setActiveTab('dashboard')
-    }
-  }
-
-  const handleArchiveItem = async (item: InventoryItem) => {
-    try {
-      await DeadStockAPI.archiveInventory(item.id)
+  const handleArchive = async (item: InventoryItem) => {
+    const ok = await archiveItem(item)
+    if (ok) {
       showToast(`SKU ${item.sku} archived successfully.`)
-      loadData()
-    } catch (err) {
+      reloadAllData()
+    } else {
       showToast(`Failed to archive SKU ${item.sku}.`)
     }
   }
@@ -344,7 +143,7 @@ export default function DeadStockPlatform() {
             setAppScreen('onboarding')
           } else {
             setAppScreen('app')
-            loadData()
+            reloadAllData()
           }
         }}
       />
@@ -359,7 +158,7 @@ export default function DeadStockPlatform() {
         onComplete={() => {
           setAppScreen('app')
           showToast('Company workspace initialized!')
-          loadData()
+          reloadAllData()
         }}
       />
     )
@@ -383,40 +182,31 @@ export default function DeadStockPlatform() {
         <Header
           currentRole={role}
           onRoleChange={handleRoleChange}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onOpenAI={() => setIsAIOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           notifications={notifications}
-          onRefreshNotifications={loadData}
-          onSignOut={() => setAppScreen('landing')}
+          onMarkNotificationAsRead={markAsRead}
+          onOpenAddInventory={() => {
+            setItemToEdit(null)
+            setIsAddModalOpen(true)
+          }}
+          onOpenCsvImport={() => setIsCsvModalOpen(true)}
+          onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onNavigateToLanding={() => setAppScreen('landing')}
         />
 
-        {/* Dynamic Toast Feedback */}
-        {toastMessage && (
-          <div className="fixed top-16 right-4 z-50 flex items-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-xs font-semibold shadow-xl text-zinc-900 dark:text-zinc-100 animate-in slide-in-from-top duration-150">
-            <CheckCircle2 className="h-4 w-4 text-[#0D9488]" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
-
-        {/* Scrollable Work Area */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Quick Header Context */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-4">
+        {/* Dynamic Workspace Tab Content */}
+        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+          {/* Top Info Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800/80 pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-                  {activeTab === 'dashboard' && 'Operations Dashboard'}
-                  {activeTab === 'inventory' && 'Inventory & Risk Intelligence'}
-                  {activeTab === 'matches' && 'B2B Counterparty Matching'}
-                  {activeTab === 'recovery' && 'Capital Recovery Center'}
-                  {activeTab === 'marketplace' && 'Surplus B2B Marketplace'}
-                  {activeTab === 'offers' && (role === 'seller' ? 'Inbound Offers' : 'My B2B Bids')}
-                  {activeTab === 'analytics' && 'Analytics & Performance'}
-                  {activeTab === 'sustainability' && 'Circular Sustainability'}
-                  {activeTab === 'settings' && 'Workspace & Organization Settings'}
+                <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 capitalize">
+                  {activeTab.replace('-', ' ')}
                 </h1>
-                <span className="rounded-full bg-teal-500/10 px-2.5 py-0.5 text-[11px] font-mono font-semibold text-[#0D9488] dark:text-[#14B8A6]">
-                  {role === 'seller' ? 'SELLER_OPERATIONS' : 'BUYER_SOURCING'}
+                <span className="rounded-full bg-teal-500/10 px-2.5 py-0.5 text-xs font-semibold text-teal-600 dark:text-teal-400 border border-teal-500/20">
+                  {role === 'seller' ? 'Seller Workspace' : 'Buyer Sourcing Mode'}
                 </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -429,12 +219,12 @@ export default function DeadStockPlatform() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={loadData}
-                disabled={loading}
+                onClick={reloadAllData}
+                disabled={inventoryLoading}
                 className="flex items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-xs transition-colors"
                 title="Refresh Live Data"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${inventoryLoading ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Sync Live</span>
               </button>
             </div>
@@ -452,7 +242,7 @@ export default function DeadStockPlatform() {
           {activeTab === 'inventory' && (
             <InventoryTable
               items={inventory}
-              loading={loading}
+              loading={inventoryLoading}
               onOpenAddModal={() => {
                 setItemToEdit(null)
                 setIsAddModalOpen(true)
@@ -464,7 +254,7 @@ export default function DeadStockPlatform() {
               }}
               onOpenRecovery={(item) => setItemForRecovery(item)}
               onOpenMatches={(item) => setActiveTab('matches')}
-              onArchiveItem={handleArchiveItem}
+              onArchiveItem={handleArchive}
               onOpenSkuDetail={(item) => setItemForSkuDetail(item)}
               onOpenExportReport={() => setIsExportReportOpen(true)}
               onOpenPublishMarketplace={(item) => setItemForMarketplacePublish(item)}
@@ -472,7 +262,7 @@ export default function DeadStockPlatform() {
           )}
 
           {activeTab === 'matches' && (
-            <BuyerMatchesView matches={matches} onRefresh={loadData} />
+            <BuyerMatchesView matches={matches} onRefresh={reloadAllData} />
           )}
 
           {activeTab === 'recovery' && (
@@ -489,7 +279,7 @@ export default function DeadStockPlatform() {
 
               <InventoryTable
                 items={inventory}
-                loading={loading}
+                loading={inventoryLoading}
                 onOpenAddModal={() => setIsAddModalOpen(true)}
                 onOpenCsvModal={() => setIsCsvModalOpen(true)}
                 onOpenEditModal={(item) => {
@@ -498,7 +288,7 @@ export default function DeadStockPlatform() {
                 }}
                 onOpenRecovery={(item) => setItemForRecovery(item)}
                 onOpenMatches={() => setActiveTab('matches')}
-                onArchiveItem={handleArchiveItem}
+                onArchiveItem={handleArchive}
                 onOpenSkuDetail={(item) => setItemForSkuDetail(item)}
                 onOpenExportReport={() => setIsExportReportOpen(true)}
                 onOpenPublishMarketplace={(item) => setItemForMarketplacePublish(item)}
@@ -507,14 +297,14 @@ export default function DeadStockPlatform() {
           )}
 
           {activeTab === 'marketplace' && (
-            <MarketplaceView listings={marketplace} onRefresh={loadData} />
+            <MarketplaceView listings={marketplace} onRefresh={reloadAllData} />
           )}
 
           {activeTab === 'offers' && (
             <OffersManagement
               offers={offers}
               currentRole={role}
-              onRefresh={loadData}
+              onRefresh={reloadAllData}
             />
           )}
 
@@ -542,7 +332,7 @@ export default function DeadStockPlatform() {
         itemToEdit={itemToEdit}
         onSuccess={() => {
           showToast(itemToEdit ? 'SKU updated successfully.' : 'New SKU analyzed and added.')
-          loadData()
+          reloadAllData()
         }}
       />
 
@@ -551,7 +341,7 @@ export default function DeadStockPlatform() {
         onClose={() => setIsCsvModalOpen(false)}
         onSuccess={() => {
           showToast('Bulk import completed and risk scores analyzed.')
-          loadData()
+          reloadAllData()
         }}
       />
 
@@ -573,7 +363,7 @@ export default function DeadStockPlatform() {
         onClose={() => setItemForMarketplacePublish(null)}
         onSuccess={() => {
           showToast('Lot successfully published to live Surplus Marketplace!')
-          loadData()
+          reloadAllData()
         }}
       />
 
@@ -583,14 +373,23 @@ export default function DeadStockPlatform() {
         inventory={inventory}
       />
 
-      <RecoveryDrawer
-        isOpen={!!itemForRecovery}
-        item={itemForRecovery}
-        onClose={() => setItemForRecovery(null)}
-        onSuccess={() => {
-          showToast('Recovery deal successfully executed and capital logged.')
-          loadData()
-        }}
+      {itemForRecovery && (
+        <RecoveryDrawer
+          isOpen={!!itemForRecovery}
+          onClose={() => setItemForRecovery(null)}
+          item={itemForRecovery}
+          onExecuteStrategy={(strategy) => {
+            showToast(`Recovery strategy '${strategy}' executed for SKU ${itemForRecovery.sku}.`)
+            setItemForRecovery(null)
+            reloadAllData()
+          }}
+        />
+      )}
+
+      <AIAssistantModal
+        isOpen={isAIAssistantOpen}
+        onClose={() => setIsAIAssistantOpen(false)}
+        inventory={inventory}
       />
 
       <CommandPalette
@@ -598,26 +397,32 @@ export default function DeadStockPlatform() {
         onClose={() => setIsCommandPaletteOpen(false)}
         inventory={inventory}
         marketplace={marketplace}
-        onSelectSKU={(sku) => {
-          const itm = inventory.find((i) => i.sku === sku)
-          if (itm) setItemForRecovery(itm)
+        onSelectInventory={(item) => {
+          setItemForSkuDetail(item)
+          setIsCommandPaletteOpen(false)
         }}
-        onTriggerAction={(act) => {
-          if (act === 'add_sku') setIsAddModalOpen(true)
-          if (act === 'import_csv') setIsCsvModalOpen(true)
-          if (act === 'open_ai') setIsAIOpen(true)
-          if (act === 'view_analytics') setActiveTab('analytics')
-          if (act === 'marketplace') {
-            setRole('buyer')
-            setActiveTab('marketplace')
-          }
+        onSelectMarketplace={(item) => {
+          setActiveTab('marketplace')
+          setIsCommandPaletteOpen(false)
+        }}
+        onNavigate={(tab) => {
+          setActiveTab(tab)
+          setIsCommandPaletteOpen(false)
         }}
       />
 
-      <AIAssistantModal
-        isOpen={isAIOpen}
-        onClose={() => setIsAIOpen(false)}
-      />
+      {/* Floating Toast Notification Stack */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 px-4 py-3 text-xs font-semibold text-zinc-900 dark:text-zinc-100 shadow-xl backdrop-blur-md animate-fade-in"
+          >
+            <CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>{toast.text}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, HelpCircle } from 'lucide-react'
+import { ChevronDown, HelpCircle, MessageSquare } from 'lucide-react'
 
 export const FAQSection: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
@@ -42,7 +42,7 @@ export const FAQSection: React.FC = () => {
     },
     {
       q: 'How does the AI assistant work and is my data private?',
-      a: 'DeadStock AI answers operational questions by querying your company’s active inventory and transaction databases. It uses strict multi-tenant isolation and never shares your proprietary data with external parties.',
+      a: 'DeadStock AI answers operational questions by querying your company\'s active inventory and transaction databases. It uses strict multi-tenant isolation and never shares your proprietary data with external parties.',
     },
     {
       q: 'How is recovered value and sustainability calculated?',
@@ -55,59 +55,96 @@ export const FAQSection: React.FC = () => {
   }
 
   return (
-    <section id="faq" className="py-24 px-6 max-w-4xl mx-auto">
-      <div className="text-center mb-14 space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-[#0D9488] dark:text-[#14B8A6]">
-          <HelpCircle className="h-3.5 w-3.5" />
-          <span>Frequently Asked Questions</span>
+    <section
+      id="faq"
+      className="relative py-28 px-6 overflow-hidden"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0A1628] via-[#0B1D35] to-[#0A1628]" />
+      <div className="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-blue-600/6 rounded-full blur-[140px]" />
+
+      <div className="max-w-4xl mx-auto relative z-10">
+        {/* Header */}
+        <div className="text-center mb-14 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: -15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            <span>Frequently Asked Questions</span>
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.08 }}
+            className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white"
+          >
+            Everything you need to know
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.15 }}
+            className="text-xs sm:text-sm text-slate-400"
+          >
+            Have additional questions about enterprise integrations? Our technical team is available 24/7.
+          </motion.p>
         </div>
-        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Everything you need to know
-        </h2>
-        <p className="text-xs sm:text-sm text-zinc-500">
-          Have additional questions about enterprise integrations? Our technical team is available 24/7.
-        </p>
-      </div>
 
-      <div className="space-y-3">
-        {faqs.map((faq, idx) => {
-          const isOpen = openIndex === idx
-          return (
-            <div
-              key={faq.q}
-              className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 overflow-hidden shadow-2xs transition-colors"
-            >
-              <button
-                type="button"
-                onClick={() => toggle(idx)}
-                className="w-full flex items-center justify-between p-5 text-left text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 hover:text-[#0D9488] transition-colors"
+        <div className="space-y-2.5">
+          {faqs.map((faq, idx) => {
+            const isOpen = openIndex === idx
+            return (
+              <motion.div
+                key={faq.q}
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.04 }}
+                className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+                  isOpen
+                    ? 'border-blue-500/40 bg-gradient-to-b from-blue-500/6 to-[#0D2244]/80 shadow-[0_8px_24px_rgba(37,99,235,0.1)]'
+                    : 'border-white/8 bg-[#0D2244]/60 hover:border-white/15'
+                }`}
               >
-                <span>{faq.q}</span>
-                <ChevronDown
-                  className={`h-4 w-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
-                    isOpen ? 'rotate-180 text-[#0D9488]' : ''
-                  }`}
-                />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggle(idx)}
+                  className="w-full flex items-center justify-between p-5 text-left text-xs sm:text-sm font-bold text-white hover:text-blue-400 transition-colors gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <MessageSquare
+                      className={`h-4 w-4 shrink-0 transition-colors ${isOpen ? 'text-blue-400' : 'text-slate-500'}`}
+                    />
+                    <span>{faq.q}</span>
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 text-slate-500 shrink-0 transition-transform duration-200 ${
+                      isOpen ? 'rotate-180 text-blue-400' : ''
+                    }`}
+                  />
+                </button>
 
-              <AnimatePresence>
-                {isOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="border-t border-zinc-100 dark:border-zinc-900 px-5 pb-5 pt-3"
-                  >
-                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                      {faq.a}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )
-        })}
+                <AnimatePresence>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="border-t border-blue-500/15 px-5 pb-5 pt-3 ml-[28px]"
+                    >
+                      <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">{faq.a}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )
+          })}
+        </div>
       </div>
     </section>
   )
