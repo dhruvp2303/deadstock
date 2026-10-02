@@ -14,13 +14,12 @@
 - **Git Commit:** `54ba8b28411f2f6f53f4c12bcf45f99ece0c4001` (`checkpoint: cleanup-complete`)
 - **Actions:** Purged 25 legacy landing components and adapters; extracted domain custom hooks; verified `npm run build` and `php artisan test`.
 
-### Phase 4 Backend API & Transaction Refinement Checkpoint
-- **Git Commit:** `cfdb9d51071c4a7415250ac6b7cb89af0c3fa960` (`checkpoint: backend-api-refinement-complete`)
-- **Standardized Response Envelope:** Implemented `ApiResponse` trait (`success`, `message`, `data`, `errors`).
-- **Form Requests Created:** `StoreInventoryRequest`, `UpdateInventoryRequest`, `SendOfferRequest`, `CounterOfferRequest`, `StoreMarketplaceListingRequest`, `ExecuteRecoveryRequest`, `RegisterRequest`, `LoginRequest`, `ImportInventoryRequest`, `StoreDemoRequest`.
-- **Master Data Controllers Added:** `CategoryController` (`/api/v1/categories`), `WarehouseController` (`/api/v1/warehouses`).
-- **Atomic Offer Negotiations:** Offer acceptance atomically triggers `RecoveryService::executeRecovery`, decrements stock, records transaction, movement, recovery action, and notification.
-- **Test Suite Status:** 26 passed (161 assertions) in `php artisan test` (100% green).
+### Phase 5 Frontend Service Layer & State Refactoring Checkpoint
+- **Git Commit:** `8f899f5b77c3a736543b5ede0eefb9d4d39bb57e` (`checkpoint: frontend-service-state-refactor-complete`)
+- **API Service:** Added `CategoryItem`, `WarehouseItem`, `TransactionItem` interfaces, master data fetchers (`getCategories`, `getWarehouses`, `getTransactions`), and resilient aliases to `lib/api.ts`.
+- **Custom Hook Layer:** Created `hooks/useMasterData.ts`; updated `useInventory`, `useBuyerMatches`, `useMarketplace`, `useOffers`, `useNotifications`, `useWorkspace`.
+- **Component Typing & Integration:** Fixed all TypeScript bindings and modal triggers in `app/page.tsx` and `OffersManagement.tsx`.
+- **Validation:** `npx tsc --noEmit --incremental false` (0 errors) & `php artisan test` (26 passed / 161 assertions).
 
 
 ---
