@@ -14,19 +14,14 @@
 - **Git Commit:** `54ba8b28411f2f6f53f4c12bcf45f99ece0c4001` (`checkpoint: cleanup-complete`)
 - **Actions:** Purged 25 legacy landing components and adapters; extracted domain custom hooks; verified `npm run build` and `php artisan test`.
 
-### Phase 3 Database Enhancement Checkpoint
-- **Pre-Phase 3 Backup:** `backend/database/database.sqlite.backup.pre-phase3.20261002-134400` (188,416 bytes, Verified)
-- **New Tables Added:**
-  1. `categories` (slug index, decay rate, description)
-  2. `warehouses` (company-scoped foreign key, soft deletes)
-  3. `buyer_requirements` (company and category foreign keys, budget, condition JSON)
-- **Modified Tables:**
-  1. `inventories` (added nullable `category_id`, `warehouse_id`, compound indexes, soft deletes)
-  2. `companies` (added `softDeletes`)
-- **Backfill Result:** 5/5 (100%) inventory items mapped to relational `Category` and company-scoped `Warehouse` entities with 0 unmapped records.
-- **Migration Status:** 22 total migrations active across Batches 1–6.
-- **Backend Tests:** 18 passed (96 assertions) in `php artisan test`.
-- **Frontend Build:** `next build` passed in 1.9s.
+### Phase 4 Backend API & Transaction Refinement Checkpoint
+- **Git Commit:** `cfdb9d51071c4a7415250ac6b7cb89af0c3fa960` (`checkpoint: backend-api-refinement-complete`)
+- **Standardized Response Envelope:** Implemented `ApiResponse` trait (`success`, `message`, `data`, `errors`).
+- **Form Requests Created:** `StoreInventoryRequest`, `UpdateInventoryRequest`, `SendOfferRequest`, `CounterOfferRequest`, `StoreMarketplaceListingRequest`, `ExecuteRecoveryRequest`, `RegisterRequest`, `LoginRequest`, `ImportInventoryRequest`, `StoreDemoRequest`.
+- **Master Data Controllers Added:** `CategoryController` (`/api/v1/categories`), `WarehouseController` (`/api/v1/warehouses`).
+- **Atomic Offer Negotiations:** Offer acceptance atomically triggers `RecoveryService::executeRecovery`, decrements stock, records transaction, movement, recovery action, and notification.
+- **Test Suite Status:** 26 passed (161 assertions) in `php artisan test` (100% green).
+
 
 ---
 
