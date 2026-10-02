@@ -71,7 +71,8 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
 
   const handleOpenCounter = (offer: OfferItem) => {
     setSelectedOfferForCounter(offer)
-    setCounterPrice(offer.offered_unit_price * 1.1)
+    const unitPrice = Number(offer.offered_unit_price || offer.offered_price_per_unit || 0)
+    setCounterPrice(Math.round(unitPrice * 1.1 * 100) / 100)
     setCounterNotes('')
   }
 
@@ -212,10 +213,10 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                       {offer.offered_quantity.toLocaleString()} units
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-medium">
-                      ₹{offer.offered_unit_price}/unit
+                      ₹{(Number(offer.offered_unit_price || offer.offered_price_per_unit || 0)).toLocaleString()}/unit
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                      ₹{offer.total_deal_value.toLocaleString()}
+                      ₹{(Number(offer.total_deal_value || offer.total_offer_amount || 0)).toLocaleString()}
                     </td>
                     <td className="py-3 px-3">
                       {getStatusBadge(offer.status)}

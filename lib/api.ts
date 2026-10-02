@@ -1,5 +1,12 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  errors?: Record<string, string[]>;
+}
+
 export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -24,6 +31,28 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
   }
 }
 
+export interface CategoryItem {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  default_decay_rate?: number;
+  is_active?: boolean;
+  inventories_count?: number;
+}
+
+export interface WarehouseItem {
+  id: number;
+  company_id: number;
+  name: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  capacity_sqft?: number;
+  contact_phone?: string;
+  inventories_count?: number;
+}
+
 export interface InventoryItem {
   id: number;
   product: string;
@@ -43,11 +72,16 @@ export interface InventoryItem {
   action: string;
   tone: 'green' | 'red' | 'amber' | 'yellow' | 'blue';
   category?: string;
+  category_id?: number;
+  warehouse?: string;
+  warehouse_id?: number;
   material?: string;
   dimensions?: string;
-  warehouse?: string;
   ai_explanation?: string;
   forecast?: number[];
+  status?: string;
+  category_details?: CategoryItem;
+  warehouse_details?: WarehouseItem;
 }
 
 export interface BuyerMatchItem {
@@ -71,6 +105,7 @@ export interface BuyerMatchItem {
     price: string;
     overall: string;
   };
+  inventory?: any;
 }
 
 export interface MarketplaceItem {
@@ -82,10 +117,12 @@ export interface MarketplaceItem {
   price: string;
   price_per_unit?: number;
   match: string;
+  match_score?: number;
   location: string;
   action: string;
   condition?: string;
   seller_company?: string;
+  inventory_id?: number;
 }
 
 export interface NotificationItem {
@@ -102,15 +139,25 @@ export interface NotificationItem {
 
 export interface OfferItem {
   id: number;
-  inventory_id: number;
-  sender_company_id: number;
-  receiver_company_id: number;
+  inventory_id?: number;
+  listing_id?: number;
+  sender_company_id?: number;
+  receiver_company_id?: number;
+  seller_company_id?: number;
+  buyer_company_id?: number;
   offered_quantity: number;
-  offered_unit_price: number;
-  total_deal_value: number;
+  offered_unit_price?: number;
+  offered_price_per_unit?: number;
+  total_deal_value?: number;
+  total_offer_amount?: number;
+  counter_price?: number;
+  escrow_term?: string;
   status: 'pending' | 'accepted' | 'rejected' | 'countered';
   notes?: string;
-  created_at: string;
+  created_at?: string;
+  seller_company_name?: string;
+  buyer_company_name?: string;
+  listing_title?: string;
   inventory?: {
     id: number;
     sku: string;
@@ -129,6 +176,25 @@ export interface OfferItem {
   };
 }
 
+export interface TransactionItem {
+  id: number;
+  reference_no: string;
+  company_id: number;
+  buyer_company_id?: number;
+  inventory_id: number;
+  transaction_type: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  recovery_value: number;
+  status: string;
+  notes?: string;
+  completed_at: string;
+  seller_company?: { id: number; name: string };
+  buyer_company?: { id: number; name: string };
+  inventory?: any;
+}
+
 export interface DashboardSummary {
   total_inventory_formatted: string;
   at_risk_formatted: string;
@@ -142,6 +208,11 @@ export interface DashboardSummary {
 }
 
 export const DeadStockAPI = {
+  // Master Data
+  getCategories: () => fetchApi<CategoryItem[]>('/categories'),
+  getWarehouses: () => fetchApi<WarehouseItem[]>('/warehouses'),
+
+  // Inventory
   getInventory: async () => {
     const data = await fetchApi<any[]>('/inventory');
     if (!data || !Array.isArray(data)) return null;
@@ -160,7 +231,8 @@ export const DeadStockAPI = {
   addInventory: (payload: {
     sku: string;
     product_name: string;
-    category: string;
+    category?: string;
+    category_id?: number;
     quantity: number;
     unit_cost: number;
     monthly_demand?: number;
@@ -168,6 +240,7 @@ export const DeadStockAPI = {
     material?: string;
     dimensions?: string;
     warehouse_location?: string;
+    warehouse_id?: number;
   }) =>
     fetchApi<any>('/inventory', {
       method: 'POST',
@@ -178,6 +251,7 @@ export const DeadStockAPI = {
     payload: Partial<{
       product_name: string;
       category: string;
+      category_id: number;
       quantity: number;
       unit_cost: number;
       monthly_demand: number;
@@ -185,6 +259,7 @@ export const DeadStockAPI = {
       material: string;
       dimensions: string;
       warehouse_location: string;
+      warehouse_id: number;
     }>
   ) =>
     fetchApi<any>(`/inventory/${identifier}`, {
@@ -204,6 +279,8 @@ export const DeadStockAPI = {
       method: 'POST',
       body: JSON.stringify({ rows }),
     }),
+
+  // Matches
   getMatches: async () => {
     const data = await fetchApi<any[]>('/matches');
     if (!data || !Array.isArray(data)) return null;
@@ -214,6 +291,9 @@ export const DeadStockAPI = {
       potential_deal_value: Number(item.potential_deal_value) || 0,
     })) as BuyerMatchItem[];
   },
+  getMatchesForInventory: (identifier: string) => fetchApi<any>(`/matches/${identifier}`),
+
+  // Marketplace
   getMarketplace: async () => {
     const data = await fetchApi<any[]>('/marketplace/listings');
     if (!data || !Array.isArray(data)) return null;
@@ -237,29 +317,41 @@ export const DeadStockAPI = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // Recovery & Analytics
   getDashboardSummary: () => fetchApi<DashboardSummary>('/dashboard/summary'),
   getAnalyticsOverview: () => fetchApi<any>('/analytics/overview'),
   getSustainability: () => fetchApi<any>('/sustainability/metrics'),
   getRecoverySummary: () => fetchApi<any>('/recovery/summary'),
+  getRecoveryStrategies: (sku: string) => fetchApi<any>(`/recovery/product/${sku}`),
+
+  // Notifications
   getNotifications: () => fetchApi<NotificationItem[]>('/notifications'),
   markNotificationRead: (id: number) =>
     fetchApi<any>(`/notifications/${id}/read`, {
       method: 'PATCH',
     }),
+  markNotificationAsRead: (id: number) =>
+    fetchApi<any>(`/notifications/${id}/read`, {
+      method: 'PATCH',
+    }),
+
+  // Offers & Negotiations
   getOffers: async () => {
     const data = await fetchApi<any[]>('/offers');
     if (!data || !Array.isArray(data)) return null;
     return data.map((item) => ({
       ...item,
       offered_quantity: Number(item.offered_quantity) || 0,
-      offered_unit_price: Number(item.offered_unit_price) || 0,
-      total_deal_value: Number(item.total_deal_value) || 0,
+      offered_unit_price: Number(item.offered_unit_price || item.offered_price_per_unit) || 0,
+      total_deal_value: Number(item.total_deal_value || item.total_offer_amount) || 0,
     })) as OfferItem[];
   },
   sendOffer: (payload: {
     sku?: string;
     inventory_id?: number;
     receiver_company_id: number;
+    buyer_match_id?: number;
     offered_quantity: number;
     offered_unit_price: number;
     notes?: string;
@@ -269,7 +361,7 @@ export const DeadStockAPI = {
       body: JSON.stringify(payload),
     }),
   acceptOffer: (id: number) =>
-    fetchApi<any>(`/offers/${id}/accept`, {
+    fetchApi<{ success: boolean; message: string; data: any }>(`/offers/${id}/accept`, {
       method: 'POST',
     }),
   counterOffer: (id: number, payload: { counter_unit_price: number; counter_quantity?: number; notes?: string }) =>
@@ -282,6 +374,9 @@ export const DeadStockAPI = {
       method: 'POST',
       body: JSON.stringify({ notes }),
     }),
+
+  // Transactions & Ledger
+  getTransactions: () => fetchApi<TransactionItem[]>('/transactions'),
   executeRecovery: (payload: {
     sku?: string;
     inventory_id?: number;
@@ -304,6 +399,8 @@ export const DeadStockAPI = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // AI & Inquiries
   askAI: (query: string) =>
     fetchApi<{ query: string; response: string; intent: string; data: any; confidence: string }>('/ai/ask', {
       method: 'POST',

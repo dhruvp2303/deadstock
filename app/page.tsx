@@ -101,22 +101,24 @@ export default function DeadStockPlatform() {
     refetchOffers()
     refetchNotifications()
     refetchSummary()
-  }, [refetchInventory, refetchMatches, refetchMarketplace, refetchOffers, refetchNotifications, refetchSummary])
+  }, [
+    refetchInventory,
+    refetchMatches,
+    refetchMarketplace,
+    refetchOffers,
+    refetchNotifications,
+    refetchSummary,
+  ])
 
   const handleArchive = async (item: InventoryItem) => {
     const ok = await archiveItem(item)
     if (ok) {
-      showToast(`SKU ${item.sku} archived successfully.`)
+      showToast(`SKU ${item.sku} moved to archive storage.`)
       reloadAllData()
-    } else {
-      showToast(`Failed to archive SKU ${item.sku}.`)
     }
   }
 
-  const totalAtRisk = inventory.filter((i) => i.risk_level === 'CRITICAL' || i.risk_level === 'HIGH').length
-  const pendingOffers = offers.filter((o) => o.status === 'pending').length
-
-  // Screen 1: Public Landing Page
+  // --- SCREEN 1: INDUSTRIAL HIGH-CONVERTING LANDING PAGE ---
   if (appScreen === 'landing') {
     return (
       <LandingPage
@@ -131,48 +133,53 @@ export default function DeadStockPlatform() {
     )
   }
 
-  // Screen 2: Authentication (Sign Up or Log In)
-  if (appScreen === 'auth_signup' || appScreen === 'auth_login') {
+  // --- SCREEN 2: AUTHENTICATION FLOW ---
+  if (appScreen === 'auth_login' || appScreen === 'auth_signup') {
     return (
       <AuthScreen
-        initialMode={appScreen === 'auth_signup' ? 'signup' : 'login'}
-        onCancel={() => setAppScreen('landing')}
-        onSuccess={({ role: selectedRole, isNew }) => {
-          setRole(selectedRole)
-          if (isNew) {
+        initialMode={appScreen === 'auth_login' ? 'login' : 'signup'}
+        onSuccess={(userData) => {
+          if (userData?.role) {
+            setRole(userData.role)
+          }
+          if (userData?.isNew) {
             setAppScreen('onboarding')
           } else {
             setAppScreen('app')
-            reloadAllData()
           }
         }}
+        onCancel={() => setAppScreen('landing')}
       />
     )
   }
 
-  // Screen 3: Onboarding 3-step Wizard
+  // --- SCREEN 3: 4-STEP ENTERPRISE ONBOARDING ---
   if (appScreen === 'onboarding') {
     return (
       <OnboardingWizard
         role={role}
         onComplete={() => {
+          showToast('Company profile and inventory workspace initialized.')
           setAppScreen('app')
-          showToast('Company workspace initialized!')
-          reloadAllData()
         }}
       />
     )
   }
 
-  // Screen 4: Main Application Workspace
+  // --- SCREEN 4: FULL OPERATIONS PLATFORM ---
+  const atRiskCount = inventory.filter(
+    (i) => i.risk_level === 'CRITICAL' || i.risk_level === 'HIGH'
+  ).length
+  const pendingOffers = offers.filter((o) => o.status === 'pending').length
+
   return (
-    <div className="flex h-screen w-full bg-zinc-100/60 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased overflow-hidden font-sans selection:bg-[#14B8A6]/20">
-      {/* Persistent Left Sidebar */}
+    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 antialiased overflow-hidden">
+      {/* Primary Sidebar */}
       <Sidebar
         currentRole={role}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        totalAtRiskCount={totalAtRisk}
+        totalAtRiskCount={atRiskCount}
         pendingOffersCount={pendingOffers}
       />
 
@@ -182,18 +189,11 @@ export default function DeadStockPlatform() {
         <Header
           currentRole={role}
           onRoleChange={handleRoleChange}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          notifications={notifications}
-          onMarkNotificationAsRead={markAsRead}
-          onOpenAddInventory={() => {
-            setItemToEdit(null)
-            setIsAddModalOpen(true)
-          }}
-          onOpenCsvImport={() => setIsCsvModalOpen(true)}
-          onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onNavigateToLanding={() => setAppScreen('landing')}
+          onOpenAI={() => setIsAIAssistantOpen(true)}
+          notifications={notifications}
+          onRefreshNotifications={refetchNotifications}
+          onSignOut={() => setAppScreen('landing')}
         />
 
         {/* Dynamic Workspace Tab Content */}
@@ -378,8 +378,8 @@ export default function DeadStockPlatform() {
           isOpen={!!itemForRecovery}
           onClose={() => setItemForRecovery(null)}
           item={itemForRecovery}
-          onExecuteStrategy={(strategy) => {
-            showToast(`Recovery strategy '${strategy}' executed for SKU ${itemForRecovery.sku}.`)
+          onSuccess={() => {
+            showToast(`Recovery strategy executed for SKU ${itemForRecovery.sku}.`)
             setItemForRecovery(null)
             reloadAllData()
           }}
@@ -389,7 +389,12 @@ export default function DeadStockPlatform() {
       <AIAssistantModal
         isOpen={isAIAssistantOpen}
         onClose={() => setIsAIAssistantOpen(false)}
-        inventory={inventory}
+        onNavigateToSKU={(sku) => {
+          const found = inventory.find((i) => i.sku === sku)
+          if (found) {
+            setItemForSkuDetail(found)
+          }
+        }}
       />
 
       <CommandPalette
@@ -397,16 +402,26 @@ export default function DeadStockPlatform() {
         onClose={() => setIsCommandPaletteOpen(false)}
         inventory={inventory}
         marketplace={marketplace}
-        onSelectInventory={(item) => {
-          setItemForSkuDetail(item)
+        onSelectSKU={(sku) => {
+          const found = inventory.find((i) => i.sku === sku)
+          if (found) {
+            setItemForSkuDetail(found)
+          }
           setIsCommandPaletteOpen(false)
         }}
-        onSelectMarketplace={(item) => {
-          setActiveTab('marketplace')
-          setIsCommandPaletteOpen(false)
-        }}
-        onNavigate={(tab) => {
-          setActiveTab(tab)
+        onTriggerAction={(action) => {
+          if (action === 'add_inventory') {
+            setItemToEdit(null)
+            setIsAddModalOpen(true)
+          } else if (action === 'import_csv') {
+            setIsCsvModalOpen(true)
+          } else if (action === 'view_matches') {
+            setActiveTab('matches')
+          } else if (action === 'view_marketplace') {
+            setActiveTab('marketplace')
+          } else if (action === 'view_analytics') {
+            setActiveTab('analytics')
+          }
           setIsCommandPaletteOpen(false)
         }}
       />
