@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
+use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class InventorySeeder extends Seeder
 {
@@ -17,8 +20,24 @@ class InventorySeeder extends Seeder
         $abc = Company::where('name', 'ABC Plastics')->first();
         if (!$abc) return;
 
+        $getCat = function($name) {
+            return Category::firstOrCreate(
+                ['slug' => Str::slug($name)],
+                ['name' => $name, 'default_decay_rate' => 0.05, 'description' => $name]
+            )->id;
+        };
+
+        $getWh = function($name, $companyId) {
+            return Warehouse::firstOrCreate(
+                ['company_id' => $companyId, 'name' => $name],
+                ['city' => 'Hyderabad', 'state' => 'Telangana', 'country' => 'India', 'capacity_sqft' => 35000]
+            )->id;
+        };
+
         $p1 = Inventory::create([
             'company_id' => $abc->id,
+            'category_id' => $getCat('Connectors & Moldings'),
+            'warehouse_id' => $getWh('Hyderabad Warehouse A-14', $abc->id),
             'sku' => 'PC2048',
             'product_name' => 'Plastic Connector 20mm',
             'category' => 'Connectors & Moldings',
@@ -57,6 +76,8 @@ class InventorySeeder extends Seeder
 
         $p2 = Inventory::create([
             'company_id' => $abc->id,
+            'category_id' => $getCat('Hardware & Fasteners'),
+            'warehouse_id' => $getWh('Hyderabad Warehouse B-03', $abc->id),
             'sku' => 'SBM8-22',
             'product_name' => 'Steel Bolt M8 High Tensile',
             'category' => 'Hardware & Fasteners',
@@ -85,6 +106,8 @@ class InventorySeeder extends Seeder
 
         $p3 = Inventory::create([
             'company_id' => $abc->id,
+            'category_id' => $getCat('Electronics & Controls'),
+            'warehouse_id' => $getWh('Hyderabad Warehouse ESD-02', $abc->id),
             'sku' => 'PCB-401',
             'product_name' => 'PCB Control Module v2',
             'category' => 'Electronics & Controls',
@@ -113,6 +136,8 @@ class InventorySeeder extends Seeder
 
         $p4 = Inventory::create([
             'company_id' => $abc->id,
+            'category_id' => $getCat('Packaging & Logistics'),
+            'warehouse_id' => $getWh('Hyderabad Yard Pallet Racks', $abc->id),
             'sku' => 'PKG-118',
             'product_name' => 'Heavy Duty Packaging Box 5-Ply',
             'category' => 'Packaging & Logistics',
@@ -141,6 +166,8 @@ class InventorySeeder extends Seeder
 
         Inventory::create([
             'company_id' => $abc->id,
+            'category_id' => $getCat('Electrical & Cabling'),
+            'warehouse_id' => $getWh('Hyderabad Warehouse C-09', $abc->id),
             'sku' => 'CAB-902',
             'product_name' => 'Industrial Shielded Cable 4-Core',
             'category' => 'Electrical & Cabling',
