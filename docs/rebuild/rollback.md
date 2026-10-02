@@ -14,11 +14,11 @@
 - **Git Commit:** `54ba8b28411f2f6f53f4c12bcf45f99ece0c4001` (`checkpoint: cleanup-complete`)
 - **Actions:** Purged 25 legacy landing components and adapters; extracted domain custom hooks; verified `npm run build` and `php artisan test`.
 
-### Phase 5 Frontend Service Layer & State Refactoring Checkpoint
-- **Git Commit:** `8f899f5b77c3a736543b5ede0eefb9d4d39bb57e` (`checkpoint: frontend-service-state-refactor-complete`)
-- **API Service:** Added `CategoryItem`, `WarehouseItem`, `TransactionItem` interfaces, master data fetchers (`getCategories`, `getWarehouses`, `getTransactions`), and resilient aliases to `lib/api.ts`.
-- **Custom Hook Layer:** Created `hooks/useMasterData.ts`; updated `useInventory`, `useBuyerMatches`, `useMarketplace`, `useOffers`, `useNotifications`, `useWorkspace`.
-- **Component Typing & Integration:** Fixed all TypeScript bindings and modal triggers in `app/page.tsx` and `OffersManagement.tsx`.
+### Phase 6 Core Workflow Synchronization Checkpoint
+- **Git Commit:** `bb1519f18577170df8d482ad3bbe457908416bfc` (`checkpoint: core-workflow-synchronization-complete`)
+- **Inventory Workflows:** Upgraded `InventoryModal` to integrate with `useMasterData`, auto-resolving normalized category decay rates and tenant warehouses.
+- **Ledger Audit Trail:** Integrated `MovementsLedgerView` with live `/api/v1/transactions` fetch and immutable transaction reference presentation.
+- **Workflow Verification:** Verified end-to-end synchronization across SKU creation, CSV import, buyer matches, offer negotiation, multi-channel recovery execution, and real-time audit logging.
 - **Validation:** `npx tsc --noEmit --incremental false` (0 errors) & `php artisan test` (26 passed / 161 assertions).
 
 
