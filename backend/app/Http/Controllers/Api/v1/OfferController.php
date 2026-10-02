@@ -3,17 +3,21 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
-use App\Models\BuyerMatch;
+use App\Http\Requests\CounterOfferRequest;
+use App\Http\Requests\SendOfferRequest;
+use App\Http\Traits\ApiResponse;
 use App\Models\Inventory;
 use App\Models\Notification;
 use App\Models\Offer;
 use App\Services\RecoveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class OfferController extends Controller
 {
+    use ApiResponse;
+
     protected RecoveryService $recoveryService;
 
     public function __construct(RecoveryService $recoveryService)
@@ -27,36 +31,15 @@ class OfferController extends Controller
 
         $offers = Offer::where('sender_company_id', $companyId)
             ->orWhere('receiver_company_id', $companyId)
-            ->with(['inventory', 'senderCompany', 'receiverCompany'])
+            ->with(['inventory.categoryModel', 'inventory.warehouseModel', 'senderCompany', 'receiverCompany'])
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $offers,
-        ]);
+        return $this->successResponse($offers, 'Offers retrieved successfully');
     }
 
-    public function sendOffer(Request $request): JsonResponse
+    public function sendOffer(SendOfferRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'sku' => 'required_without:inventory_id|string',
-            'inventory_id' => 'required_without:sku|integer',
-            'receiver_company_id' => 'required|integer|exists:companies,id',
-            'buyer_match_id' => 'nullable|integer',
-            'offered_quantity' => 'required|integer|min:1',
-            'offered_unit_price' => 'required|numeric|min:0.01',
-            'notes' => 'nullable|string|max:1000',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $inventory = null;
         if ($request->has('inventory_id')) {
             $inventory = Inventory::find($request->inventory_id);
@@ -65,10 +48,7 @@ class OfferController extends Controller
         }
 
         if (!$inventory) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Inventory item not found',
-            ], 404);
+            return $this->errorResponse('Inventory item not found', null, 404);
         }
 
         $senderCompanyId = $request->user()?->company_id ?: $inventory->company_id;
@@ -99,60 +79,55 @@ class OfferController extends Controller
             'is_read' => false,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Offer dispatched successfully',
-            'data' => $offer->load(['receiverCompany', 'inventory']),
-        ], 201);
+        return $this->successResponse(
+            $offer->load(['receiverCompany', 'senderCompany', 'inventory']),
+            'Offer dispatched successfully',
+            201
+        );
     }
 
     public function acceptOffer(int $id, Request $request): JsonResponse
     {
         $offer = Offer::with(['inventory', 'receiverCompany', 'senderCompany'])->find($id);
         if (!$offer) {
-            return response()->json(['success' => false, 'message' => 'Offer not found'], 404);
+            return $this->errorResponse('Offer not found', null, 404);
         }
 
         if ($offer->status === 'accepted') {
-            return response()->json(['success' => false, 'message' => 'Offer has already been accepted and completed.'], 400);
+            return $this->errorResponse('Offer has already been accepted and completed.', null, 400);
         }
 
-        $offer->status = 'accepted';
-        $offer->save();
+        return DB::transaction(function () use ($offer, $request) {
+            $offer->status = 'accepted';
+            $offer->save();
 
-        // Execute recovery transaction
-        $result = $this->recoveryService->executeRecovery(
-            $offer->inventory,
-            'sell',
-            $offer->offered_quantity,
-            (float) $offer->total_deal_value,
-            $offer->receiver_company_id,
-            "Accepted B2B Offer #{$offer->id}",
-            $request->user()?->id
-        );
+            // Execute atomic recovery transaction
+            $result = $this->recoveryService->executeRecovery(
+                $offer->inventory,
+                'sell',
+                $offer->offered_quantity,
+                (float) $offer->total_deal_value,
+                $offer->receiver_company_id,
+                "Accepted B2B Offer #{$offer->id}",
+                $request->user()?->id
+            );
 
-        return response()->json($result);
+            return $this->successResponse([
+                'offer' => $offer->fresh(['receiverCompany', 'senderCompany', 'inventory']),
+                'recovery' => $result,
+            ], 'Offer accepted and transaction completed successfully');
+        });
     }
 
-    public function counterOffer(int $id, Request $request): JsonResponse
+    public function counterOffer(int $id, CounterOfferRequest $request): JsonResponse
     {
         $offer = Offer::with(['inventory', 'receiverCompany', 'senderCompany'])->find($id);
         if (!$offer) {
-            return response()->json(['success' => false, 'message' => 'Offer not found'], 404);
+            return $this->errorResponse('Offer not found', null, 404);
         }
 
-        $validator = Validator::make($request->all(), [
-            'counter_unit_price' => 'required|numeric|min:0.01',
-            'counter_quantity' => 'nullable|integer|min:1',
-            'notes' => 'nullable|string|max:1000',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
+        if (in_array($offer->status, ['accepted', 'rejected'])) {
+            return $this->errorResponse("Cannot counter an offer that is already {$offer->status}.", null, 400);
         }
 
         $counterPrice = (float) $request->counter_unit_price;
@@ -176,28 +151,26 @@ class OfferController extends Controller
             'is_read' => false,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Counter-offer dispatched successfully.',
-            'data' => $offer->load(['receiverCompany', 'senderCompany', 'inventory']),
-        ]);
+        return $this->successResponse(
+            $offer->load(['receiverCompany', 'senderCompany', 'inventory']),
+            'Counter-offer dispatched successfully.'
+        );
     }
 
     public function rejectOffer(int $id, Request $request): JsonResponse
     {
         $offer = Offer::find($id);
         if (!$offer) {
-            return response()->json(['success' => false, 'message' => 'Offer not found'], 404);
+            return $this->errorResponse('Offer not found', null, 404);
         }
 
         $offer->status = 'rejected';
         $offer->notes = $request->notes ?: 'Offer declined by counterparty.';
         $offer->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Offer declined.',
-            'data' => $offer,
-        ]);
+        return $this->successResponse(
+            $offer->load(['receiverCompany', 'senderCompany', 'inventory']),
+            'Offer declined.'
+        );
     }
 }

@@ -3,16 +3,20 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreMarketplaceListingRequest;
+use App\Http\Traits\ApiResponse;
 use App\Models\MarketplaceListing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class MarketplaceController extends Controller
 {
+    use ApiResponse;
+
     public function index(Request $request): JsonResponse
     {
-        $query = MarketplaceListing::with('company')->where('status', 'active');
+        $query = MarketplaceListing::with(['company', 'inventory.categoryModel', 'inventory.warehouseModel'])
+            ->where('status', 'active');
 
         if ($request->has('search') && !empty($request->search)) {
             $s = $request->search;
@@ -44,33 +48,15 @@ class MarketplaceController extends Controller
                 'action' => 'View Opportunity',
                 'condition' => $item->condition,
                 'seller_company' => $item->company?->name,
+                'inventory_id' => $item->inventory_id,
             ];
         });
 
-        return response()->json([
-            'success' => true,
-            'data' => $formatted,
-        ]);
+        return $this->successResponse($formatted, 'Marketplace listings retrieved successfully');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreMarketplaceListingRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'category' => 'required|string|max:255',
-            'units_available' => 'required|integer|min:1',
-            'price_per_unit' => 'required|numeric|min:0.01',
-            'location' => 'required|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $companyId = $request->user()?->company_id ?: 1;
 
         $listing = MarketplaceListing::create([
@@ -88,10 +74,10 @@ class MarketplaceController extends Controller
             'status' => 'active',
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Marketplace listing published successfully',
-            'data' => $listing,
-        ], 201);
+        return $this->successResponse(
+            $listing->load('company'),
+            'Marketplace listing published successfully',
+            201
+        );
     }
 }

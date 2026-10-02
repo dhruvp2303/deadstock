@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ExecuteRecoveryRequest;
+use App\Http\Traits\ApiResponse;
 use App\Models\Inventory;
 use App\Models\Transaction;
 use App\Services\RecoveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class TransactionController extends Controller
 {
+    use ApiResponse;
+
     protected RecoveryService $recoveryService;
 
     public function __construct(RecoveryService $recoveryService)
@@ -25,39 +28,18 @@ class TransactionController extends Controller
 
         $transactions = Transaction::where('company_id', $companyId)
             ->orWhere('buyer_company_id', $companyId)
-            ->with(['sellerCompany', 'buyerCompany', 'inventory'])
+            ->with(['sellerCompany', 'buyerCompany', 'inventory.categoryModel', 'inventory.warehouseModel'])
             ->orderByDesc('completed_at')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $transactions,
-        ]);
+        return $this->successResponse($transactions, 'Transactions retrieved successfully');
     }
 
     /**
      * Execute a recovery deal transaction in real-time.
      */
-    public function executeRecovery(Request $request): JsonResponse
+    public function executeRecovery(ExecuteRecoveryRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'sku' => 'required_without:inventory_id|string',
-            'inventory_id' => 'required_without:sku|integer',
-            'action_type' => 'required|string|in:sell,transfer,return,recycle,discount,b2b_sale',
-            'quantity' => 'required|integer|min:1',
-            'deal_amount' => 'required|numeric|min:0',
-            'buyer_company_id' => 'nullable|integer|exists:companies,id',
-            'channel_notes' => 'nullable|string|max:1000',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $inventory = null;
         if ($request->has('inventory_id')) {
             $inventory = Inventory::find($request->inventory_id);
@@ -66,10 +48,7 @@ class TransactionController extends Controller
         }
 
         if (!$inventory) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Inventory item not found.',
-            ], 404);
+            return $this->errorResponse('Inventory item not found.', null, 404);
         }
 
         try {
@@ -83,17 +62,11 @@ class TransactionController extends Controller
                 $request->user()?->id
             );
 
-            return response()->json($result, 201);
+            return $this->successResponse($result['data'], $result['message'], 201);
         } catch (\InvalidArgumentException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            return $this->errorResponse($e->getMessage(), null, 400);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to execute transaction: ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('Failed to execute transaction: ' . $e->getMessage(), null, 500);
         }
     }
 }

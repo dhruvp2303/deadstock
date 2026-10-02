@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Traits\ApiResponse;
 use App\Models\BuyerMatch;
 use App\Models\Inventory;
 use App\Services\BuyerMatchingService;
@@ -11,6 +12,8 @@ use Illuminate\Http\Request;
 
 class BuyerMatchController extends Controller
 {
+    use ApiResponse;
+
     protected BuyerMatchingService $buyerService;
 
     public function __construct(BuyerMatchingService $buyerService)
@@ -20,7 +23,7 @@ class BuyerMatchController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $matches = BuyerMatch::with(['inventory', 'buyerCompany'])
+        $matches = BuyerMatch::with(['inventory.categoryModel', 'inventory.warehouseModel', 'buyerCompany'])
             ->orderByDesc('overall_match_score')
             ->get();
 
@@ -45,34 +48,29 @@ class BuyerMatchController extends Controller
                     'price' => $m->price_compatibility . '%',
                     'overall' => round($m->overall_match_score, 0) . '%',
                 ],
+                'inventory' => $m->inventory,
             ];
         });
 
-        return response()->json([
-            'success' => true,
-            'data' => $formatted,
-        ]);
+        return $this->successResponse($formatted, 'Buyer matches retrieved successfully');
     }
 
     public function matchesForInventory(string $identifier): JsonResponse
     {
         $inventory = Inventory::where('id', $identifier)
             ->orWhere('sku', $identifier)
+            ->with(['categoryModel', 'warehouseModel'])
             ->first();
 
         if (!$inventory) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Inventory not found',
-            ], 404);
+            return $this->errorResponse('Inventory not found', null, 404);
         }
 
         $matches = $this->buyerService->findMatchesForInventory($inventory);
 
-        return response()->json([
-            'success' => true,
-            'inventory' => $inventory->only(['id', 'sku', 'product_name', 'quantity', 'current_value']),
-            'data' => $matches,
-        ]);
+        return $this->successResponse([
+            'inventory' => $inventory->only(['id', 'sku', 'product_name', 'quantity', 'current_value', 'category', 'category_id', 'warehouse_id', 'warehouse_location']),
+            'matches' => $matches,
+        ], 'Matches for inventory retrieved successfully');
     }
 }

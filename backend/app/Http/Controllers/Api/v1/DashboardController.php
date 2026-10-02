@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Traits\ApiResponse;
 use App\Services\AnalyticsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    use ApiResponse;
+
     protected AnalyticsService $analyticsService;
 
     public function __construct(AnalyticsService $analyticsService)
@@ -21,10 +24,6 @@ class DashboardController extends Controller
         $companyId = $request->user()?->company_id;
         $summary = $this->analyticsService->getDashboardSummary($companyId);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Dashboard summary retrieved successfully',
-            'data' => $summary,
-        ]);
+        return $this->successResponse($summary, 'Dashboard summary retrieved successfully');
     }
 }

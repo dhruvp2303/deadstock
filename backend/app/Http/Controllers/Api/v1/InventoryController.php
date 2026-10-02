@@ -3,17 +3,26 @@
 namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ImportInventoryRequest;
+use App\Http\Requests\StoreInventoryRequest;
+use App\Http\Requests\UpdateInventoryRequest;
+use App\Http\Traits\ApiResponse;
+use App\Models\Category;
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
+use App\Models\Warehouse;
 use App\Services\BuyerMatchingService;
 use App\Services\InventoryService;
 use App\Services\RecoveryService;
 use App\Services\RiskAnalysisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class InventoryController extends Controller
 {
+    use ApiResponse;
+
     protected RiskAnalysisService $riskService;
     protected RecoveryService $recoveryService;
     protected BuyerMatchingService $buyerService;
@@ -33,10 +42,24 @@ class InventoryController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Inventory::with('company');
+        $query = Inventory::with(['company', 'categoryModel', 'warehouseModel']);
 
         if ($request->has('category') && !empty($request->category)) {
-            $query->where('category', $request->category);
+            $cat = $request->category;
+            $query->where(function ($q) use ($cat) {
+                $q->where('category', $cat)
+                  ->orWhereHas('categoryModel', function ($cq) use ($cat) {
+                      $cq->where('name', $cat)->orWhere('slug', $cat);
+                  });
+            });
+        }
+
+        if ($request->has('category_id') && !empty($request->category_id)) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->has('warehouse_id') && !empty($request->warehouse_id)) {
+            $query->where('warehouse_id', $request->warehouse_id);
         }
 
         if ($request->has('risk_level') && !empty($request->risk_level)) {
@@ -81,95 +104,97 @@ class InventoryController extends Controller
                 'risk_level' => $item->risk_level,
                 'action' => $item->recommended_action ?: 'Find Buyer',
                 'tone' => $tone,
-                'category' => $item->category,
+                'category_id' => $item->category_id,
+                'category' => $item->category ?: $item->categoryModel?->name,
+                'warehouse_id' => $item->warehouse_id,
+                'warehouse' => $item->warehouse_location ?: $item->warehouseModel?->name,
                 'material' => $item->material,
                 'dimensions' => $item->dimensions,
-                'warehouse' => $item->warehouse_location,
                 'ai_explanation' => $item->ai_explanation,
                 'forecast' => $item->demand_forecast_history ?: [24, 20, 18, 17, 16, 12, 10, 9],
+                'status' => $item->status,
+                'category_details' => $item->categoryModel,
+                'warehouse_details' => $item->warehouseModel,
             ];
         });
 
-        return response()->json([
-            'success' => true,
-            'data' => $formatted,
-        ]);
+        return $this->successResponse($formatted, 'Inventory items retrieved successfully');
     }
 
     public function show(string $identifier): JsonResponse
     {
         $inventory = Inventory::where('id', $identifier)
             ->orWhere('sku', $identifier)
-            ->with(['company', 'movements.creator', 'buyerMatches.buyerCompany', 'recoveryActions', 'marketplaceListings'])
+            ->with(['company', 'categoryModel', 'warehouseModel', 'movements.creator', 'buyerMatches.buyerCompany', 'recoveryActions', 'marketplaceListings'])
             ->first();
 
         if (!$inventory) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Inventory item not found',
-            ], 404);
+            return $this->errorResponse('Inventory item not found', null, 404);
         }
 
         $recoveryData = $this->recoveryService->getRecoveryStrategies($inventory);
         $matches = $this->buyerService->findMatchesForInventory($inventory);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'inventory' => $inventory,
-                'recovery' => $recoveryData,
-                'matches' => $matches,
-            ],
-        ]);
+        return $this->successResponse([
+            'inventory' => $inventory,
+            'recovery' => $recoveryData,
+            'matches' => $matches,
+        ], 'Inventory item details retrieved successfully');
     }
 
     public function heroDemo(): JsonResponse
     {
         $demo = Inventory::where('sku', 'PC2048')
-            ->with(['buyerMatches.buyerCompany'])
+            ->with(['buyerMatches.buyerCompany', 'categoryModel', 'warehouseModel'])
             ->first();
 
         if (!$demo) {
-            $demo = Inventory::first();
+            $demo = Inventory::with(['categoryModel', 'warehouseModel'])->first();
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $demo,
-        ]);
+        return $this->successResponse($demo, 'Hero demo inventory retrieved successfully');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreInventoryRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'sku' => 'required|string|max:100',
-            'product_name' => 'required|string|max:255',
-            'category' => 'required|string|max:255',
-            'quantity' => 'required|integer|min:1',
-            'unit_cost' => 'required|numeric|min:0',
-            'monthly_demand' => 'nullable|integer|min:0',
-            'age_months' => 'nullable|integer|min:0',
-            'material' => 'nullable|string|max:255',
-            'dimensions' => 'nullable|string|max:255',
-            'warehouse_location' => 'nullable|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $companyId = $request->user()?->company_id ?: 1;
         $qty = (int) $request->quantity;
         $cost = (float) $request->unit_cost;
-        $val = $qty * $cost;
+        $val = round($qty * $cost, 2);
 
-        $inventory = new Inventory($request->all());
+        $inventory = new Inventory($request->validated());
         $inventory->company_id = $companyId;
         $inventory->current_value = $val;
+
+        // Sync relational and legacy category fields
+        if ($request->filled('category_id')) {
+            $cat = Category::find($request->category_id);
+            if ($cat && empty($inventory->category)) {
+                $inventory->category = $cat->name;
+            }
+        } elseif ($request->filled('category')) {
+            $cat = Category::where('name', $request->category)
+                ->orWhere('slug', Str::slug($request->category))
+                ->first();
+            if ($cat) {
+                $inventory->category_id = $cat->id;
+            }
+        }
+
+        // Sync relational and legacy warehouse fields
+        if ($request->filled('warehouse_id')) {
+            $wh = Warehouse::where('company_id', $companyId)->find($request->warehouse_id);
+            if ($wh && empty($inventory->warehouse_location)) {
+                $inventory->warehouse_location = $wh->name;
+            }
+        } elseif ($request->filled('warehouse_location')) {
+            $wh = Warehouse::where('company_id', $companyId)
+                ->where('name', $request->warehouse_location)
+                ->first();
+            if ($wh) {
+                $inventory->warehouse_id = $wh->id;
+            }
+        }
 
         // Auto-run risk analysis
         $riskResult = $this->riskService->analyze($inventory);
@@ -184,46 +209,54 @@ class InventoryController extends Controller
         // Auto-compute buyer matches
         $this->buyerService->findMatchesForInventory($inventory);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Inventory item created and analyzed successfully',
-            'data' => $inventory->load('buyerMatches'),
-        ], 201);
+        return $this->successResponse(
+            $inventory->load(['buyerMatches', 'categoryModel', 'warehouseModel']),
+            'Inventory item created and analyzed successfully',
+            201
+        );
     }
 
-    /**
-     * Update an existing inventory item and re-calculate risk and matches.
-     */
-    public function update(int|string $identifier, Request $request): JsonResponse
+    public function update(int|string $identifier, UpdateInventoryRequest $request): JsonResponse
     {
         $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
         if (!$inventory) {
-            return response()->json(['success' => false, 'message' => 'Inventory item not found'], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'product_name' => 'sometimes|required|string|max:255',
-            'category' => 'sometimes|required|string|max:255',
-            'quantity' => 'sometimes|required|integer|min:0',
-            'unit_cost' => 'sometimes|required|numeric|min:0',
-            'monthly_demand' => 'nullable|integer|min:0',
-            'age_months' => 'nullable|integer|min:0',
-            'material' => 'nullable|string|max:255',
-            'dimensions' => 'nullable|string|max:255',
-            'warehouse_location' => 'nullable|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->errorResponse('Inventory item not found', null, 404);
         }
 
         $prevQty = $inventory->quantity;
-        $inventory->fill($request->all());
+        $companyId = $inventory->company_id;
+        $inventory->fill($request->validated());
         $inventory->current_value = round($inventory->quantity * $inventory->unit_cost, 2);
+
+        // Sync relational and legacy category fields
+        if ($request->filled('category_id')) {
+            $cat = Category::find($request->category_id);
+            if ($cat && empty($request->category)) {
+                $inventory->category = $cat->name;
+            }
+        } elseif ($request->filled('category')) {
+            $cat = Category::where('name', $request->category)
+                ->orWhere('slug', Str::slug($request->category))
+                ->first();
+            if ($cat) {
+                $inventory->category_id = $cat->id;
+            }
+        }
+
+        // Sync relational and legacy warehouse fields
+        if ($request->filled('warehouse_id')) {
+            $wh = Warehouse::where('company_id', $companyId)->find($request->warehouse_id);
+            if ($wh && empty($request->warehouse_location)) {
+                $inventory->warehouse_location = $wh->name;
+            }
+        } elseif ($request->filled('warehouse_location')) {
+            $wh = Warehouse::where('company_id', $companyId)
+                ->where('name', $request->warehouse_location)
+                ->first();
+            if ($wh) {
+                $inventory->warehouse_id = $wh->id;
+            }
+        }
 
         // Re-analyze risk
         $riskResult = $this->riskService->analyze($inventory);
@@ -236,7 +269,7 @@ class InventoryController extends Controller
         $inventory->save();
 
         if ($request->has('quantity') && $request->quantity != $prevQty) {
-            \App\Models\InventoryMovement::create([
+            InventoryMovement::create([
                 'inventory_id' => $inventory->id,
                 'movement_type' => 'adjusted',
                 'quantity' => abs($inventory->quantity - $prevQty),
@@ -248,27 +281,23 @@ class InventoryController extends Controller
             ]);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Inventory updated and re-analyzed successfully',
-            'data' => $inventory,
-        ]);
+        return $this->successResponse(
+            $inventory->load(['categoryModel', 'warehouseModel']),
+            'Inventory updated and re-analyzed successfully'
+        );
     }
 
-    /**
-     * Archive an inventory item (soft-archive) to keep historical analytics intact.
-     */
     public function destroy(int|string $identifier, Request $request): JsonResponse
     {
         $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
         if (!$inventory) {
-            return response()->json(['success' => false, 'message' => 'Inventory item not found'], 404);
+            return $this->errorResponse('Inventory item not found', null, 404);
         }
 
         $inventory->status = 'archived';
         $inventory->save();
 
-        \App\Models\InventoryMovement::create([
+        InventoryMovement::create([
             'inventory_id' => $inventory->id,
             'movement_type' => 'adjusted',
             'quantity' => $inventory->quantity,
@@ -279,54 +308,30 @@ class InventoryController extends Controller
             'created_by' => $request->user()?->id,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => "SKU {$inventory->sku} archived successfully.",
-        ]);
+        return $this->successResponse(
+            ['id' => $inventory->id, 'sku' => $inventory->sku, 'status' => 'archived'],
+            "SKU {$inventory->sku} archived successfully."
+        );
     }
 
-    /**
-     * Restore an archived inventory item.
-     */
     public function restore(int|string $identifier): JsonResponse
     {
         $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
         if (!$inventory) {
-            return response()->json(['success' => false, 'message' => 'Inventory item not found'], 404);
+            return $this->errorResponse('Inventory item not found', null, 404);
         }
 
         $inventory->status = 'active';
         $inventory->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => "SKU {$inventory->sku} restored to active inventory.",
-            'data' => $inventory,
-        ]);
+        return $this->successResponse(
+            $inventory->load(['categoryModel', 'warehouseModel']),
+            "SKU {$inventory->sku} restored to active inventory."
+        );
     }
 
-    /**
-     * Import multiple inventory rows from CSV / JSON payload.
-     */
-    public function import(Request $request): JsonResponse
+    public function import(ImportInventoryRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'rows' => 'required|array|min:1',
-            'rows.*.sku' => 'nullable|string',
-            'rows.*.product_name' => 'nullable|string',
-            'rows.*.category' => 'nullable|string',
-            'rows.*.quantity' => 'nullable|numeric',
-            'rows.*.unit_cost' => 'nullable|numeric',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid import data payload',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $companyId = $request->user()?->company_id ?: 1;
         $result = $this->inventoryService->importRows($request->rows, $companyId, $request->user()?->id);
 
