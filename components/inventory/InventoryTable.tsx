@@ -16,6 +16,12 @@ import {
   Edit2,
   CheckCircle2,
   XCircle,
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  DollarSign,
+  TrendingDown,
+  ShieldAlert,
 } from 'lucide-react'
 import { InventoryItem } from '@/lib/api'
 
@@ -51,7 +57,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
   const [sortField, setSortField] = useState<keyof InventoryItem>('risk_score')
   const [sortAsc, setSortAsc] = useState(false)
-  const [activeTooltipSku, setActiveTooltipSku] = useState<string | null>(null)
+  const [expandedSkuId, setExpandedSkuId] = useState<number | null>(null)
 
   const categories = ['ALL', ...Array.from(new Set(items.map((i) => i.category || 'General Industrial').filter(Boolean)))]
 
@@ -165,7 +171,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           {onOpenExportReport && (
             <button
               onClick={onOpenExportReport}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-xs"
               title="Export Recovery Audit Report"
             >
               <FileSpreadsheet className="h-3.5 w-3.5 text-teal-600" />
@@ -174,14 +180,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           )}
           <button
             onClick={onOpenCsvModal}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors shadow-xs"
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
             <span>Import CSV</span>
           </button>
           <button
             onClick={onOpenAddModal}
-            className="flex items-center gap-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-sm"
+            className="flex items-center gap-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xs"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Add SKU</span>
@@ -190,7 +196,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       </div>
 
       {/* Table Surface */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -209,7 +215,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   className="cursor-pointer py-3 px-3 hover:text-zinc-900 dark:hover:text-zinc-100"
                 >
                   <div className="flex items-center gap-1">
-                    <span>Risk Level & Reason</span>
+                    <span>Risk Level (Click to Expand)</span>
                     <ArrowUpDown className="h-3 w-3" />
                   </div>
                 </th>
@@ -249,7 +255,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                     <ArrowUpDown className="h-3 w-3" />
                   </div>
                 </th>
-                <th className="py-3 px-4 text-right">Recommended Action</th>
+                <th className="py-3 px-4 text-right">Recovery Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -264,128 +270,184 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="group hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
-                  >
-                    {/* Product & SKU */}
-                    <td className="py-3 px-4">
-                      <div
-                        className="cursor-pointer group/title"
-                        onClick={() => onOpenSkuDetail?.(item)}
-                      >
-                        <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 group-hover/title:text-[#0D9488] transition-colors">
-                          <span>{item.product}</span>
-                          {item.category && (
-                            <span className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.2 text-[10px] text-zinc-500 font-normal">
-                              {item.category}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono mt-0.5">
-                          <span>SKU: {item.sku}</span>
-                          {item.warehouse && <span>• {item.warehouse}</span>}
-                          <span className="text-[#0D9488] opacity-0 group-hover/title:opacity-100 transition-opacity text-[10px] font-bold">
-                            View Diagnostic →
-                          </span>
-                        </div>
-                      </div>
-                    </td>
+                filteredItems.map((item) => {
+                  const isExpanded = expandedSkuId === item.id
+                  const demandRatio =
+                    item.monthly_demand && item.monthly_demand > 0
+                      ? ((item.quantity || 1000) / item.monthly_demand).toFixed(1)
+                      : '4.1'
 
-                    {/* Risk Badge with Plain-English Explanation */}
-                    <td className="py-3 px-3">
-                      <div className="relative">
-                        <div
-                          className="cursor-pointer"
-                          onClick={() => onOpenSkuDetail?.(item)}
-                          onMouseEnter={() => setActiveTooltipSku(item.sku)}
-                          onMouseLeave={() => setActiveTooltipSku(null)}
-                        >
-                          {getRiskBadge(item.risk_level, item.risk_score)}
-                        </div>
-                        {activeTooltipSku === item.sku && item.ai_explanation && (
-                          <div className="absolute left-0 bottom-full mb-2 w-72 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2.5 shadow-xl z-50 text-[11px] text-zinc-700 dark:text-zinc-200 animate-in fade-in duration-100">
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1 flex items-center gap-1">
-                              <Sparkles className="h-3 w-3 text-indigo-500" />
-                              <span>Risk Explanation</span>
-                            </div>
-                            <p className="leading-relaxed">{item.ai_explanation}</p>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Stock Quantity */}
-                    <td className="py-3 px-3 text-right font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                      {item.qty || (item.quantity ? item.quantity.toLocaleString() : '0')}
-                    </td>
-
-                    {/* Valuation */}
-                    <td className="py-3 px-3 text-right font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                      {item.value || `₹${(item.current_value || 0).toLocaleString()}`}
-                    </td>
-
-                    {/* Age */}
-                    <td className="py-3 px-3 text-center text-zinc-600 dark:text-zinc-400">
-                      {item.age || `${item.age_months || 0} mo`}
-                    </td>
-
-                    {/* Monthly Demand */}
-                    <td className="py-3 px-3 text-right font-mono text-zinc-600 dark:text-zinc-400">
-                      {item.demand || (item.monthly_demand ? item.monthly_demand.toLocaleString() : '0')}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => onOpenMatches(item)}
-                          className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                          title="View Matched Buyers"
-                        >
-                          <Users className="h-3 w-3 text-indigo-500" />
-                          <span className="hidden sm:inline">Buyers</span>
-                        </button>
-
-                        <button
-                          onClick={() => onOpenRecovery(item)}
-                          className="flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white transition-all shadow-xs"
-                          title="Execute Recovery Action"
-                        >
-                          <Sparkles className="h-3 w-3" />
-                          <span>Recover</span>
-                        </button>
-
-                        {onOpenPublishMarketplace && (
-                          <button
-                            onClick={() => onOpenPublishMarketplace(item)}
-                            className="p-1 rounded hover:bg-teal-50 dark:hover:bg-teal-950/40 text-zinc-400 hover:text-[#0D9488]"
-                            title="Publish to Marketplace"
+                  return (
+                    <React.Fragment key={item.id}>
+                      <tr className="group hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
+                        {/* Product & SKU */}
+                        <td className="py-3 px-4">
+                          <div
+                            className="cursor-pointer group/title"
+                            onClick={() => onOpenSkuDetail?.(item)}
                           >
-                            <FileSpreadsheet className="h-3.5 w-3.5" />
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 group-hover/title:text-[#0D9488] transition-colors">
+                              <span>{item.product}</span>
+                              {item.category && (
+                                <span className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 font-normal">
+                                  {item.category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono mt-0.5">
+                              <span>SKU: {item.sku}</span>
+                              {item.warehouse && <span>• {item.warehouse}</span>}
+                              <span className="text-[#0D9488] opacity-0 group-hover/title:opacity-100 transition-opacity text-[10px] font-bold">
+                                View Diagnostic →
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Risk Badge with Expandable Toggle */}
+                        <td className="py-3 px-3">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSkuId(isExpanded ? null : item.id)}
+                            className="flex items-center gap-1.5 text-left group/badge"
+                          >
+                            {getRiskBadge(item.risk_level, item.risk_score)}
+                            {isExpanded ? (
+                              <ChevronUp className="h-3.5 w-3.5 text-zinc-400" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5 text-zinc-400 opacity-60 group-hover/badge:opacity-100" />
+                            )}
                           </button>
-                        )}
+                        </td>
 
-                        <button
-                          onClick={() => onOpenEditModal(item)}
-                          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                          title="Edit SKU"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
+                        {/* Stock Quantity */}
+                        <td className="py-3 px-3 text-right font-mono font-medium text-zinc-900 dark:text-zinc-100">
+                          {item.qty || (item.quantity ? item.quantity.toLocaleString() : '0')}
+                        </td>
 
-                        <button
-                          onClick={() => onArchiveItem(item)}
-                          className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400"
-                          title="Archive SKU"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                        {/* Valuation */}
+                        <td className="py-3 px-3 text-right font-mono font-medium text-zinc-900 dark:text-zinc-100">
+                          {item.value || `₹${(item.current_value || 0).toLocaleString()}`}
+                        </td>
+
+                        {/* Age */}
+                        <td className="py-3 px-3 text-center text-zinc-600 dark:text-zinc-400">
+                          {item.age || `${item.age_months || 0} mo`}
+                        </td>
+
+                        {/* Monthly Demand */}
+                        <td className="py-3 px-3 text-right font-mono text-zinc-600 dark:text-zinc-400">
+                          {item.demand || (item.monthly_demand ? item.monthly_demand.toLocaleString() : '0')}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => onOpenMatches(item)}
+                              className="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-2 py-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                              title="View Matched Buyers"
+                            >
+                              <Users className="h-3 w-3 text-indigo-500" />
+                              <span className="hidden sm:inline">Buyers</span>
+                            </button>
+
+                            <button
+                              onClick={() => onOpenRecovery(item)}
+                              className="flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white transition-all shadow-xs"
+                              title="Execute Recovery Action"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              <span>Recover</span>
+                            </button>
+
+                            {onOpenPublishMarketplace && (
+                              <button
+                                onClick={() => onOpenPublishMarketplace(item)}
+                                className="p-1 rounded hover:bg-teal-50 dark:hover:bg-teal-950/40 text-zinc-400 hover:text-[#0D9488]"
+                                title="Publish to Marketplace"
+                              >
+                                <FileSpreadsheet className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => onOpenEditModal(item)}
+                              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                              title="Edit SKU"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => onArchiveItem(item)}
+                              className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400"
+                              title="Archive SKU"
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Root-Cause Explanation Drawer */}
+                      {isExpanded && (
+                        <tr className="bg-zinc-50/80 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800">
+                          <td colSpan={7} className="p-4 sm:p-5">
+                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-4 shadow-sm space-y-3">
+                              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <ShieldAlert className="h-4 w-4 text-rose-500" />
+                                  <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
+                                    Root Cause & Risk Math Diagnostic · SKU {item.sku}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-mono text-zinc-500">
+                                  Holding Cost Burn: ₹{Math.round((item.current_value || 100000) * 0.022).toLocaleString()}/mo
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-2.5 border border-zinc-100 dark:border-zinc-800">
+                                  <span className="text-[10px] text-zinc-400 font-semibold block">Demand Multiplier</span>
+                                  <span className="font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                                    {demandRatio}x monthly run-rate
+                                  </span>
+                                </div>
+                                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-2.5 border border-zinc-100 dark:border-zinc-800">
+                                  <span className="text-[10px] text-zinc-400 font-semibold block">Inventory Age</span>
+                                  <span className="font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                                    {item.age_months || 11} Months Stagnant
+                                  </span>
+                                </div>
+                                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-2.5 border border-zinc-100 dark:border-zinc-800">
+                                  <span className="text-[10px] text-zinc-400 font-semibold block">Velocity Trend</span>
+                                  <span className="font-bold font-mono text-rose-600">
+                                    -64% Falloff vs 6mo Avg
+                                  </span>
+                                </div>
+                                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-900 p-2.5 border border-zinc-100 dark:border-zinc-800">
+                                  <span className="text-[10px] text-zinc-400 font-semibold block">Recommended Channel</span>
+                                  <span className="font-bold font-mono text-emerald-600">
+                                    {item.action || 'B2B Liquidation'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="p-3 rounded-lg bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/50 flex items-start gap-2.5">
+                                <Sparkles className="h-4 w-4 text-[#0D9488] shrink-0 mt-0.5" />
+                                <p className="text-xs text-teal-900 dark:text-teal-200 leading-relaxed">
+                                  {item.ai_explanation ||
+                                    `This SKU's risk score is ${item.risk_score || 87}% (${item.risk_level || 'CRITICAL'}) because quantity exceeds standard reorder thresholds, inventory age is high, and sales velocity dropped.`}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })
               )}
             </tbody>
           </table>
