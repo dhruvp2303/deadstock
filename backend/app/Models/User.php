@@ -27,6 +27,9 @@ class User extends Authenticatable
         'role',
         'phone',
         'profile_image',
+        'last_login_at',
+        'last_login_ip',
+        'is_demo',
     ];
 
     /**
@@ -48,7 +51,9 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'is_demo' => 'boolean',
         ];
     }
 

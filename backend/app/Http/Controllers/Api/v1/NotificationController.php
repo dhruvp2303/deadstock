@@ -14,10 +14,18 @@ class NotificationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id ?: 1;
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
 
-        $notifications = Notification::where('company_id', $companyId)
+        $notifications = Notification::where('company_id', $user->company_id)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhereNull('user_id');
+            })
             ->orderByDesc('created_at')
+            ->limit(100)
             ->get();
 
         return $this->successResponse($notifications, 'Notifications retrieved successfully');
@@ -25,10 +33,16 @@ class NotificationController extends Controller
 
     public function markAsRead(int $id, Request $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id ?: 1;
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
         $notification = Notification::where('id', $id)
-            ->where(function ($q) use ($companyId) {
-                $q->where('company_id', $companyId)->orWhereNull('company_id');
+            ->where('company_id', $user->company_id)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhereNull('user_id');
             })
             ->first();
 

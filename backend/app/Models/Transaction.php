@@ -13,11 +13,19 @@ class Transaction extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'user_id' => 'integer',
+        'company_id' => 'integer',
+        'buyer_company_id' => 'integer',
         'unit_price' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'recovery_value' => 'decimal:2',
         'completed_at' => 'datetime',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function sellerCompany(): BelongsTo
     {

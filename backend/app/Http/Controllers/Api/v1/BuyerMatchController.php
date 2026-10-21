@@ -23,9 +23,15 @@ class BuyerMatchController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $matches = BuyerMatch::with(['inventory.categoryModel', 'inventory.warehouseModel', 'buyerCompany'])
-            ->orderByDesc('overall_match_score')
-            ->get();
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $query = BuyerMatch::whereHas('inventory', fn($q) => $q->where('company_id', $user->company_id))
+            ->with(['inventory.categoryModel', 'inventory.warehouseModel', 'buyerCompany']);
+
+        $matches = $query->orderByDesc('overall_match_score')->get();
 
         $formatted = $matches->map(function ($m) {
             return [
@@ -39,7 +45,7 @@ class BuyerMatchController extends Controller
                 'value' => '₹' . ($m->potential_deal_value >= 100000 ? round($m->potential_deal_value / 100000, 1) . 'L' : number_format($m->potential_deal_value)),
                 'potential_deal_value' => $m->potential_deal_value,
                 'note' => $m->notes,
-                'tags' => $m->compatibility_tags ?: ['Material', 'Dimensions', 'Category'],
+                'tags' => is_array($m->compatibility_tags) ? $m->compatibility_tags : [],
                 'breakdown' => [
                     'product_compatibility' => $m->product_compatibility . '%',
                     'quantity_compatibility' => $m->quantity_compatibility . '%',
@@ -48,6 +54,9 @@ class BuyerMatchController extends Controller
                     'price' => $m->price_compatibility . '%',
                     'overall' => round($m->overall_match_score, 0) . '%',
                 ],
+                'buyer_company_id' => $m->buyer_company_id,
+                'inventory_id' => $m->inventory_id,
+                'inventory_sku' => $m->inventory?->sku,
                 'inventory' => $m->inventory,
             ];
         });
@@ -57,13 +66,20 @@ class BuyerMatchController extends Controller
 
     public function matchesForInventory(string $identifier): JsonResponse
     {
-        $inventory = Inventory::where('id', $identifier)
-            ->orWhere('sku', $identifier)
+        $user = auth('sanctum')->user() ?? request()->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $inventory = Inventory::where('company_id', $user->company_id)
+            ->where(function ($q) use ($identifier) {
+                $q->where('id', $identifier)->orWhere('sku', $identifier);
+            })
             ->with(['categoryModel', 'warehouseModel'])
             ->first();
 
         if (!$inventory) {
-            return $this->errorResponse('Inventory not found', null, 404);
+            return $this->errorResponse('Inventory item not found or unauthorized access', null, 404);
         }
 
         $matches = $this->buyerService->findMatchesForInventory($inventory);

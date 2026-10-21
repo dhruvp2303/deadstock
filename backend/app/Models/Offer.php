@@ -13,10 +13,16 @@ class Offer extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'user_id' => 'integer',
         'offered_quantity' => 'integer',
         'offered_unit_price' => 'float',
         'total_deal_value' => 'float',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function inventory(): BelongsTo
     {

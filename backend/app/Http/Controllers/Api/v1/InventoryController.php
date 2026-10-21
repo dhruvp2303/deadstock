@@ -8,6 +8,7 @@ use App\Http\Requests\StoreInventoryRequest;
 use App\Http\Requests\UpdateInventoryRequest;
 use App\Http\Traits\ApiResponse;
 use App\Models\Category;
+use App\Models\Company;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\Warehouse;
@@ -42,7 +43,12 @@ class InventoryController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Inventory::with(['company', 'categoryModel', 'warehouseModel']);
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $query = Inventory::where('company_id', $user->company_id)->with(['company', 'categoryModel', 'warehouseModel']);
 
         if ($request->has('category') && !empty($request->category)) {
             $cat = $request->category;
@@ -86,6 +92,15 @@ class InventoryController extends Controller
                 default => 'green',
             };
 
+            // Parse forecast history cleanly without fallback dummy fixtures
+            $rawForecast = $item->demand_forecast_history;
+            $forecastArray = [];
+            if (is_array($rawForecast)) {
+                $forecastArray = array_map('floatval', $rawForecast);
+            } elseif (is_string($rawForecast) && trim($rawForecast) !== '') {
+                $forecastArray = array_map('floatval', preg_split('/\s+/', trim($rawForecast)));
+            }
+
             return [
                 'id' => $item->id,
                 'product' => $item->product_name,
@@ -111,7 +126,7 @@ class InventoryController extends Controller
                 'material' => $item->material,
                 'dimensions' => $item->dimensions,
                 'ai_explanation' => $item->ai_explanation,
-                'forecast' => $item->demand_forecast_history ?: [24, 20, 18, 17, 16, 12, 10, 9],
+                'forecast' => $forecastArray,
                 'status' => $item->status,
                 'category_details' => $item->categoryModel,
                 'warehouse_details' => $item->warehouseModel,
@@ -123,13 +138,20 @@ class InventoryController extends Controller
 
     public function show(string $identifier): JsonResponse
     {
-        $inventory = Inventory::where('id', $identifier)
-            ->orWhere('sku', $identifier)
+        $user = auth('sanctum')->user() ?? request()->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $inventory = Inventory::where('company_id', $user->company_id)
+            ->where(function ($q) use ($identifier) {
+                $q->where('id', $identifier)->orWhere('sku', $identifier);
+            })
             ->with(['company', 'categoryModel', 'warehouseModel', 'movements.creator', 'buyerMatches.buyerCompany', 'recoveryActions', 'marketplaceListings'])
             ->first();
 
         if (!$inventory) {
-            return $this->errorResponse('Inventory item not found', null, 404);
+            return $this->errorResponse('Inventory item not found or unauthorized access', null, 404);
         }
 
         $recoveryData = $this->recoveryService->getRecoveryStrategies($inventory);
@@ -142,28 +164,21 @@ class InventoryController extends Controller
         ], 'Inventory item details retrieved successfully');
     }
 
-    public function heroDemo(): JsonResponse
-    {
-        $demo = Inventory::where('sku', 'PC2048')
-            ->with(['buyerMatches.buyerCompany', 'categoryModel', 'warehouseModel'])
-            ->first();
-
-        if (!$demo) {
-            $demo = Inventory::with(['categoryModel', 'warehouseModel'])->first();
-        }
-
-        return $this->successResponse($demo, 'Hero demo inventory retrieved successfully');
-    }
-
     public function store(StoreInventoryRequest $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id ?: 1;
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Authenticated company session required to register inventory', null, 401);
+        }
+
+        $companyId = $user->company_id;
         $qty = (int) $request->quantity;
         $cost = (float) $request->unit_cost;
         $val = round($qty * $cost, 2);
 
         $inventory = new Inventory($request->validated());
         $inventory->company_id = $companyId;
+        $inventory->user_id = $user->id;
         $inventory->current_value = $val;
 
         // Sync relational and legacy category fields
@@ -218,9 +233,19 @@ class InventoryController extends Controller
 
     public function update(int|string $identifier, UpdateInventoryRequest $request): JsonResponse
     {
-        $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $inventory = Inventory::where('company_id', $user->company_id)
+            ->where(function ($q) use ($identifier) {
+                $q->where('id', $identifier)->orWhere('sku', $identifier);
+            })
+            ->first();
+
         if (!$inventory) {
-            return $this->errorResponse('Inventory item not found', null, 404);
+            return $this->errorResponse('Inventory item not found or unauthorized access', null, 404);
         }
 
         $prevQty = $inventory->quantity;
@@ -289,9 +314,19 @@ class InventoryController extends Controller
 
     public function destroy(int|string $identifier, Request $request): JsonResponse
     {
-        $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $inventory = Inventory::where('company_id', $user->company_id)
+            ->where(function ($q) use ($identifier) {
+                $q->where('id', $identifier)->orWhere('sku', $identifier);
+            })
+            ->first();
+
         if (!$inventory) {
-            return $this->errorResponse('Inventory item not found', null, 404);
+            return $this->errorResponse('Inventory item not found or unauthorized access', null, 404);
         }
 
         $inventory->status = 'archived';
@@ -305,7 +340,7 @@ class InventoryController extends Controller
             'destination_location' => 'Archive Storage',
             'reference' => 'ARCH-' . date('Ymd'),
             'notes' => 'Inventory archived by operator.',
-            'created_by' => $request->user()?->id,
+            'created_by' => $user->id,
         ]);
 
         return $this->successResponse(
@@ -316,9 +351,19 @@ class InventoryController extends Controller
 
     public function restore(int|string $identifier): JsonResponse
     {
-        $inventory = Inventory::where('id', $identifier)->orWhere('sku', $identifier)->first();
+        $user = auth('sanctum')->user() ?? request()->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $inventory = Inventory::where('company_id', $user->company_id)
+            ->where(function ($q) use ($identifier) {
+                $q->where('id', $identifier)->orWhere('sku', $identifier);
+            })
+            ->first();
+
         if (!$inventory) {
-            return $this->errorResponse('Inventory item not found', null, 404);
+            return $this->errorResponse('Inventory item not found or unauthorized access', null, 404);
         }
 
         $inventory->status = 'active';
@@ -332,8 +377,12 @@ class InventoryController extends Controller
 
     public function import(ImportInventoryRequest $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id ?: 1;
-        $result = $this->inventoryService->importRows($request->rows, $companyId, $request->user()?->id);
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Authenticated company session required for import', null, 401);
+        }
+
+        $result = $this->inventoryService->importRows($request->rows, $user->company_id, $user->id);
 
         return response()->json($result, 201);
     }

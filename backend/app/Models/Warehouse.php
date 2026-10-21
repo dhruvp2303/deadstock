@@ -15,8 +15,15 @@ class Warehouse extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'user_id' => 'integer',
+        'company_id' => 'integer',
         'capacity_sqft' => 'integer',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function company(): BelongsTo
     {

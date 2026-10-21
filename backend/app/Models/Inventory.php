@@ -16,6 +16,7 @@ class Inventory extends Model
 
     protected $casts = [
         'company_id' => 'integer',
+        'user_id' => 'integer',
         'category_id' => 'integer',
         'warehouse_id' => 'integer',
         'quantity' => 'integer',
@@ -31,6 +32,11 @@ class Inventory extends Model
         'last_sold_date' => 'date',
         'last_movement_date' => 'date',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function company(): BelongsTo
     {

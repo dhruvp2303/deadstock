@@ -13,6 +13,18 @@ class Company extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'is_demo' => 'boolean',
+    ];
+
+    protected $appends = ['location'];
+
+    public function getLocationAttribute(): string
+    {
+        $parts = array_filter([$this->location_city, $this->location_state, $this->country]);
+        return implode(', ', $parts);
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

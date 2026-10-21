@@ -30,8 +30,13 @@ class AIServiceController extends Controller
             return $this->errorResponse('Query is required', $validator->errors(), 422);
         }
 
-        $userId = $request->user()?->id;
-        $companyId = $request->user()?->company_id;
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $userId = $user->id;
+        $companyId = $user->company_id;
 
         $result = $this->aiService->ask($request->input('query'), $userId, $companyId);
 

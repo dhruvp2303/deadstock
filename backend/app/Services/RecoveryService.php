@@ -126,7 +126,7 @@ class RecoveryService
             }
 
             $originalQty = $inventory->quantity;
-            $unitPrice = $quantity > 0 ? round($dealAmount / $quantity, 2) : 0;
+            $unitPrice = $quantity > 0 ? round($dealAmount / $quantity, 2) : $inventory->unit_cost;
 
             // 1. Decrement inventory quantity and update valuation
             $inventory->quantity -= $quantity;
@@ -172,6 +172,7 @@ class RecoveryService
             $refNo = 'TXN-' . date('Y') . '-' . strtoupper(substr(uniqid(), -6));
             $transaction = Transaction::create([
                 'reference_no' => $refNo,
+                'user_id' => $userId,
                 'company_id' => $inventory->company_id,
                 'buyer_company_id' => $buyerCompanyId,
                 'inventory_id' => $inventory->id,
@@ -188,6 +189,7 @@ class RecoveryService
             // 4. Record Recovery Action
             $wasteAvoided = round($quantity * 0.1, 2); // 100g average industrial diversion per unit
             $recoveryAction = RecoveryAction::create([
+                'user_id' => $userId,
                 'inventory_id' => $inventory->id,
                 'company_id' => $inventory->company_id,
                 'action_type' => $actionType,

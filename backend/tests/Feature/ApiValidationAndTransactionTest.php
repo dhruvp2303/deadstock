@@ -15,10 +15,20 @@ class ApiValidationAndTransactionTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected User $user;
+    protected Company $company;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed();
+        $this->company = Company::firstOrCreate(['name' => 'Primary Test Co'], ['industry' => 'Industrial']);
+        $this->user = User::firstOrCreate(['email' => 'test-admin@test.com'], [
+            'name' => 'Test Admin',
+            'company_id' => $this->company->id,
+            'password' => bcrypt('password123'),
+            'role' => 'admin',
+        ]);
     }
 
     public function test_categories_endpoint_returns_success_envelope(): void
@@ -38,7 +48,15 @@ class ApiValidationAndTransactionTest extends TestCase
 
     public function test_warehouses_endpoint_returns_success_envelope(): void
     {
-        $response = $this->getJson('/api/v1/warehouses');
+        Warehouse::firstOrCreate([
+            'company_id' => $this->company->id,
+            'name' => 'Test Warehouse',
+        ], [
+            'user_id' => $this->user->id,
+            'city' => 'Mumbai',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')->getJson('/api/v1/warehouses');
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -53,12 +71,16 @@ class ApiValidationAndTransactionTest extends TestCase
 
     public function test_store_inventory_with_valid_data_and_relational_ids(): void
     {
-        $company = Company::first();
         $category = Category::first();
-        $warehouse = Warehouse::where('company_id', $company->id)->first();
+        $warehouse = Warehouse::where('company_id', $this->company->id)->first() ?? Warehouse::create([
+            'company_id' => $this->company->id,
+            'user_id' => $this->user->id,
+            'name' => 'Auto Hub',
+            'city' => 'Mumbai',
+        ]);
 
         $payload = [
-            'company_id' => $company->id,
+            'company_id' => $this->company->id,
             'sku' => 'TEST-SKU-9901',
             'product_name' => 'High Grade Industrial Valve',
             'category_id' => $category->id,
@@ -71,7 +93,7 @@ class ApiValidationAndTransactionTest extends TestCase
             'dimensions' => '12x8x6 in',
         ];
 
-        $response = $this->postJson('/api/v1/inventory', $payload);
+        $response = $this->actingAs($this->user, 'sanctum')->postJson('/api/v1/inventory', $payload);
 
         $response->assertStatus(201)
             ->assertJson([
@@ -119,7 +141,7 @@ class ApiValidationAndTransactionTest extends TestCase
             'unit_cost' => 100.00,
         ];
 
-        $response = $this->postJson('/api/v1/inventory', $payload);
+        $response = $this->actingAs($this->user, 'sanctum')->postJson('/api/v1/inventory', $payload);
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['warehouse_id']);
     }
@@ -128,8 +150,9 @@ class ApiValidationAndTransactionTest extends TestCase
     {
         $inventory = Inventory::first();
         $originalQty = $inventory->quantity;
+        $user = User::where('company_id', $inventory->company_id)->first() ?? User::factory()->create(['company_id' => $inventory->company_id]);
 
-        $response = $this->putJson("/api/v1/inventory/{$inventory->id}", [
+        $response = $this->actingAs($user, 'sanctum')->putJson("/api/v1/inventory/{$inventory->id}", [
             'quantity' => $originalQty + 50,
             'unit_cost' => $inventory->unit_cost,
         ]);
@@ -148,10 +171,12 @@ class ApiValidationAndTransactionTest extends TestCase
     {
         $inventory = Inventory::first();
         $sellerCompany = $inventory->company;
-        $buyerCompany = Company::where('id', '!=', $sellerCompany->id)->first();
+        $buyerCompany = Company::where('id', '!=', $sellerCompany->id)->first() ?? Company::create(['name' => 'Buyer Co', 'industry' => 'Auto']);
+        $sellerUser = User::where('company_id', $sellerCompany->id)->first() ?? User::factory()->create(['company_id' => $sellerCompany->id]);
+        $buyerUser = User::where('company_id', $buyerCompany->id)->first() ?? User::factory()->create(['company_id' => $buyerCompany->id]);
 
         // 1. Send Offer
-        $sendResponse = $this->postJson('/api/v1/offers/send', [
+        $sendResponse = $this->actingAs($sellerUser, 'sanctum')->postJson('/api/v1/offers/send', [
             'inventory_id' => $inventory->id,
             'receiver_company_id' => $buyerCompany->id,
             'offered_quantity' => 20,
@@ -165,7 +190,7 @@ class ApiValidationAndTransactionTest extends TestCase
         $offerId = $sendResponse->json('data.id');
 
         // 2. Counter Offer
-        $counterResponse = $this->postJson("/api/v1/offers/{$offerId}/counter", [
+        $counterResponse = $this->actingAs($buyerUser, 'sanctum')->postJson("/api/v1/offers/{$offerId}/counter", [
             'counter_unit_price' => 190.00,
             'counter_quantity' => 20,
             'notes' => 'Targeting 190/unit',
@@ -183,7 +208,7 @@ class ApiValidationAndTransactionTest extends TestCase
 
         // 3. Accept Offer Atomically
         $initialStock = $inventory->fresh()->quantity;
-        $acceptResponse = $this->postJson("/api/v1/offers/{$offerId}/accept");
+        $acceptResponse = $this->actingAs($sellerUser, 'sanctum')->postJson("/api/v1/offers/{$offerId}/accept");
 
         $acceptResponse->assertStatus(200)
             ->assertJson([
@@ -217,9 +242,10 @@ class ApiValidationAndTransactionTest extends TestCase
     public function test_execute_recovery_transaction_validates_stock_availability(): void
     {
         $inventory = Inventory::first();
+        $user = User::where('company_id', $inventory->company_id)->first() ?? User::factory()->create(['company_id' => $inventory->company_id]);
 
         // Attempting to recover more than available stock should return 400
-        $response = $this->postJson('/api/v1/transactions/execute-recovery', [
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/transactions/execute-recovery', [
             'inventory_id' => $inventory->id,
             'action_type' => 'sell',
             'quantity' => $inventory->quantity + 99999,

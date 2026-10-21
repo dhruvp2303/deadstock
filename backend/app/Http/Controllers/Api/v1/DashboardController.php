@@ -21,8 +21,12 @@ class DashboardController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id;
-        $summary = $this->analyticsService->getDashboardSummary($companyId);
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $summary = $this->analyticsService->getDashboardSummary($user->company_id);
 
         return $this->successResponse($summary, 'Dashboard summary retrieved successfully');
     }

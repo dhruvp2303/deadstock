@@ -18,11 +18,14 @@ class SustainabilityController extends Controller
     {
         $this->sustainabilityService = $sustainabilityService;
     }
-
     public function metrics(Request $request): JsonResponse
     {
-        $companyId = $request->user()?->company_id;
-        $data = $this->sustainabilityService->getMetrics($companyId);
+        $user = auth('sanctum')->user() ?? $request->user();
+        if (!$user || !$user->company_id) {
+            return $this->errorResponse('Unauthenticated', null, 401);
+        }
+
+        $data = $this->sustainabilityService->getMetrics($user->company_id);
 
         return $this->successResponse($data, 'Sustainability metrics retrieved successfully');
     }

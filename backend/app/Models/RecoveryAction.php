@@ -13,6 +13,8 @@ class RecoveryAction extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'user_id' => 'integer',
+        'company_id' => 'integer',
         'original_value' => 'decimal:2',
         'estimated_recovery' => 'decimal:2',
         'recovered_value' => 'decimal:2',
@@ -20,6 +22,11 @@ class RecoveryAction extends Model
         'waste_avoided_kg' => 'decimal:2',
         'executed_at' => 'datetime',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function inventory(): BelongsTo
     {

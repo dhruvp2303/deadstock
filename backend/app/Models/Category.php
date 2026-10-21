@@ -13,9 +13,18 @@ class Category extends Model
 
     protected $guarded = [];
 
+    protected $appends = [
+        'is_active',
+    ];
+
     protected $casts = [
         'default_decay_rate' => 'float',
     ];
+
+    public function getIsActiveAttribute(): bool
+    {
+        return true;
+    }
 
     public static function boot()
     {
