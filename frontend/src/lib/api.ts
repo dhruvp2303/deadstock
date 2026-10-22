@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1').trim().replace(/\/+$/, '');
+export const API_BASE_URL = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -23,7 +24,8 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
       Object.assign(reqHeaders, options.headers);
     }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
       ...options,
       headers: reqHeaders,
     });
@@ -43,13 +45,21 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
       if (endpoint.startsWith('/auth/')) {
         throw new Error(errMsg);
       }
-      console.warn(`API request to ${endpoint} returned status: ${res.status}`, errMsg);
+      console.warn(`API request to ${cleanEndpoint} returned status: ${res.status}`, errMsg);
       return null;
     }
 
     return json?.data !== undefined ? json.data : json;
   } catch (err: unknown) {
     if (endpoint.startsWith('/auth/')) {
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        const isLocalHost = API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.includes('localhost');
+        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && isLocalHost) {
+          throw new Error('Backend unreachable: NEXT_PUBLIC_API_URL is pointing to localhost on Vercel. Please deploy the Laravel backend and set NEXT_PUBLIC_API_URL in your Vercel project environment variables.');
+        } else {
+          throw new Error('Unable to connect to the backend server. Please check that your backend is running and reachable.');
+        }
+      }
       throw err;
     }
     console.warn(`API request failed for ${endpoint}.`, err);

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { X, ShieldCheck, CheckCircle2, CreditCard, RefreshCw, AlertCircle, ArrowRight, Lock } from 'lucide-react'
+import { API_BASE_URL } from '@/lib/api'
 
 interface PaymentModalProps {
   isOpen: boolean
@@ -41,7 +42,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     try {
       // 1. Create order on backend
-      const orderRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/v1/payments/create-order`, {
+      const orderRes = await fetch(`${API_BASE_URL}/payments/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
@@ -63,7 +64,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       const generatedPaymentId = 'pay_' + Math.random().toString(36).substring(2, 12)
 
       // 2. Verify payment settlement on backend
-      const verifyRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/v1/payments/verify`, {
+      const verifyRes = await fetch(`${API_BASE_URL}/payments/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: deadstock-backend-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    envVars:
+      - key: APP_NAME
+        value: DeadStock
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
