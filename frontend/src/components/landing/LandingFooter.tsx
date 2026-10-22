@@ -128,7 +128,7 @@ export const LandingFooter: React.FC<{
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-zinc-100 dark:border-zinc-850 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
+        <div className="pt-8 border-t border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
           <span>© 2026 DeadStock Platform Technologies Pvt Ltd. All rights reserved.</span>
           <div className="flex items-center gap-4">
             <button type="button" onClick={onLogin} className="hover:text-[#0D9488] transition-colors">

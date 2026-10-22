@@ -400,7 +400,7 @@ export const DeadStockAPI = {
   sendOffer: (payload: {
     sku?: string;
     inventory_id?: number;
-    receiver_company_id: number;
+    receiver_company_id?: number;
     buyer_match_id?: number;
     offered_quantity: number;
     offered_unit_price: number;

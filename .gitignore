@@ -5,8 +5,12 @@ backend/node_modules/
 
 # Next.js build
 .next/
+**/.next/
+frontend/.next/
 out/
+frontend/out/
 .vercel/
+/package-lock.json
 
 # Environment files
 .env
